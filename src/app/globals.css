@@ -1,0 +1,495 @@
+:root {
+  --background: #f4f7fb;
+  --foreground: #172026;
+  --muted: #637083;
+  --line: #dfe5ee;
+  --panel: #ffffff;
+  --accent: #1478d4;
+  --accent-dark: #0757a5;
+  --accent-soft: #e8f3ff;
+  --danger: #b42318;
+  --success: #067647;
+}
+
+html {
+  height: 100%;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.shell {
+  width: min(1120px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 22px 0 56px;
+}
+
+.platformTop {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  align-items: center;
+  gap: 24px;
+  min-height: 58px;
+  padding: 0 28px;
+  color: #fff;
+  background: linear-gradient(90deg, var(--accent-dark), var(--accent));
+  box-shadow: 0 2px 12px rgba(15, 57, 100, .18);
+}
+
+.platformBrand {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.platformTop nav {
+  display: flex;
+  gap: 4px;
+}
+
+.platformTop a {
+  padding: 18px 14px;
+  color: rgba(255, 255, 255, .92);
+  font-weight: 700;
+}
+
+.platformTop a:hover {
+  background: rgba(255, 255, 255, .12);
+}
+
+.userPill {
+  border: 1px solid rgba(255, 255, 255, .4);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, .13);
+}
+
+.courseBanner {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 18px;
+  align-items: stretch;
+  margin: 18px 0;
+  padding: 26px;
+  border-radius: 8px;
+  color: #fff;
+  background:
+    linear-gradient(120deg, rgba(7, 87, 165, .96), rgba(20, 120, 212, .86)),
+    radial-gradient(circle at 88% 16%, rgba(255,255,255,.35), transparent 28%);
+}
+
+.courseBanner h1 {
+  max-width: 760px;
+  margin: 8px 0 12px;
+  font-size: 34px;
+  line-height: 1.18;
+}
+
+.courseBanner p {
+  max-width: 700px;
+  color: rgba(255,255,255,.86);
+  line-height: 1.7;
+}
+
+.courseBanner .eyebrow {
+  color: rgba(255,255,255,.82);
+}
+
+.courseBadge {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 18px;
+  background: rgba(255,255,255,.14);
+}
+
+.courseBadge strong {
+  font-size: 22px;
+}
+
+.courseBadge span {
+  color: rgba(255,255,255,.8);
+}
+
+.quickActions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 0 0 18px;
+}
+
+.quickActions a {
+  display: grid;
+  gap: 8px;
+  min-height: 86px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.quickActions span {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.quickActions strong {
+  font-size: 18px;
+}
+
+.sectionHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 28px 0;
+}
+
+.sectionHead h1 {
+  max-width: 760px;
+  font-size: 40px;
+  line-height: 1.15;
+  margin: 8px 0 12px;
+}
+
+.sectionHead p,
+.panel p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.nav,
+.topbar,
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.nav a,
+.topbar a,
+.actions a,
+button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #fff;
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+button {
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: .55;
+}
+
+.notice {
+  border: 1px solid #fedf89;
+  background: #fffaeb;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 16px 0;
+  color: #7a4b00;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 16px 0 24px;
+}
+
+.stats div,
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  box-shadow: 0 1px 2px rgba(15, 57, 100, .04);
+}
+
+.stats span {
+  display: block;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.stats p,
+.muted {
+  color: var(--muted);
+}
+
+.grid.two {
+  display: grid;
+  grid-template-columns: 1.1fr .9fr;
+  gap: 16px;
+}
+
+.moduleTitle {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.moduleTitle span {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.timeline {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+}
+
+.timeline li {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+}
+
+.timeline p {
+  margin-top: 4px;
+}
+
+.steps {
+  padding-left: 22px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.ok {
+  color: var(--success) !important;
+}
+
+.bad {
+  color: var(--danger) !important;
+}
+
+.topbar {
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.list,
+.cards {
+  display: grid;
+  gap: 14px;
+}
+
+.cards {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tag {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.meta dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.meta dd {
+  font-weight: 700;
+}
+
+.empty {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  padding: 28px;
+  text-align: center;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.submitLayout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.assignmentCard {
+  position: sticky;
+  top: 78px;
+}
+
+.assignmentCard ul {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.formSectionTitle {
+  border-left: 4px solid var(--accent);
+  padding-left: 10px;
+  color: var(--foreground);
+  font-weight: 800;
+}
+
+label {
+  display: grid;
+  gap: 7px;
+  font-weight: 700;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 12px;
+  font: inherit;
+  background: #fff;
+}
+
+textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.check input {
+  width: auto;
+}
+
+.result {
+  margin-top: 20px;
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.okBox {
+  border: 1px solid #abefc6;
+  background: #ecfdf3;
+}
+
+.badBox {
+  border: 1px solid #fecdca;
+  background: #fef3f2;
+}
+
+pre {
+  overflow: auto;
+  white-space: pre-wrap;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .platformTop,
+  .courseBanner,
+  .sectionHead,
+  .grid.two {
+    display: block;
+  }
+
+  .stats,
+  .cards,
+  .quickActions,
+  .submitLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .courseBanner h1,
+  .sectionHead h1 {
+    font-size: 30px;
+  }
+
+  .platformTop {
+    padding: 10px 16px;
+  }
+
+  .platformTop nav {
+    margin-top: 8px;
+  }
+
+  .platformTop a {
+    padding: 8px 10px;
+  }
+
+  .assignmentCard {
+    position: static;
+  }
+}
