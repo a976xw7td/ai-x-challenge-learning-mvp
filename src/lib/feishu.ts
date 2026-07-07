@@ -26,6 +26,68 @@ type FeishuCreateResponse = {
 
 let cachedTenantToken: { token: string; expiresAt: number } | null = null;
 
+const FEISHU_FIELD_NAMES: Record<string, string> = {
+  student_id: "学生ID",
+  name: "姓名",
+  email: "邮箱",
+  github_username: "GitHub用户名",
+  github_profile_url: "GitHub主页",
+  school: "学校",
+  major: "专业",
+  grade: "年级",
+  cohort: "班级/队列",
+  ai_x_direction: "AI+X方向",
+  status: "状态",
+  portfolio_url: "作品集链接",
+  challenge_id: "挑战ID",
+  title: "标题",
+  brief: "简介",
+  objective: "目标",
+  deliverables: "交付物",
+  rubric: "评分标准",
+  deadline: "截止时间",
+  created_by: "创建人",
+  submission_id: "提交ID",
+  github_repo_url: "GitHub仓库链接",
+  demo_url: "演示链接",
+  summary: "摘要",
+  submitted_at: "提交时间",
+  github_check_status: "GitHub检查状态",
+  readme_found: "README是否存在",
+  latest_commit_at: "最新提交时间",
+  student_name: "学生姓名",
+  project_title: "项目标题",
+  project_summary: "项目摘要",
+  readme_url: "README链接",
+  aar_text: "AAR复盘",
+  self_evaluation_text: "自评文本",
+  github_check_result: "GitHub检查结果",
+  is_public: "是否公开",
+  evaluation_id: "评价ID",
+  score: "分数",
+  level: "等级",
+  strengths: "优点",
+  risks: "风险",
+  suggestions: "建议",
+  reviewed_at: "评价时间",
+  reviewer: "评价人",
+  evaluator_type: "评价类型",
+  score_total: "总分",
+  scores_json: "分项分数JSON",
+  weaknesses: "不足",
+  feedback: "反馈",
+  created_at: "创建时间",
+  portfolio_item_id: "作品ID",
+  description: "描述",
+  evidence_summary: "证据摘要",
+  type: "类型",
+  public_description: "公开描述",
+  github_url: "GitHub链接",
+  cover_image_url: "封面图链接",
+  skills: "技能",
+  ai_feedback_summary: "AI反馈摘要",
+};
+
 function appToken() {
   return requireEnv("FEISHU_APP_TOKEN");
 }
@@ -97,22 +159,32 @@ function asBoolean(value: unknown) {
   return value === true || value === "true" || value === "是";
 }
 
+function field(fields: Record<string, unknown>, key: string) {
+  return fields[FEISHU_FIELD_NAMES[key]] ?? fields[key];
+}
+
+function toFeishuFields(fields: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(fields).map(([key, value]) => [FEISHU_FIELD_NAMES[key] ?? key, value]),
+  );
+}
+
 function normalizeStudent(record: { record_id: string; fields: Record<string, unknown> }): FeishuRecord<Student> {
   const f = record.fields;
   return {
     recordId: record.record_id,
-    student_id: asString(f.student_id),
-    name: asString(f.name),
-    email: asString(f.email),
-    github_username: asString(f.github_username),
-    github_profile_url: asString(f.github_profile_url),
-    school: asString(f.school),
-    major: asString(f.major),
-    grade: asString(f.grade),
-    cohort: asString(f.cohort),
-    ai_x_direction: asString(f.ai_x_direction),
-    status: asString(f.status),
-    portfolio_url: asString(f.portfolio_url),
+    student_id: asString(field(f, "student_id")),
+    name: asString(field(f, "name")),
+    email: asString(field(f, "email")),
+    github_username: asString(field(f, "github_username")),
+    github_profile_url: asString(field(f, "github_profile_url")),
+    school: asString(field(f, "school")),
+    major: asString(field(f, "major")),
+    grade: asString(field(f, "grade")),
+    cohort: asString(field(f, "cohort")),
+    ai_x_direction: asString(field(f, "ai_x_direction")),
+    status: asString(field(f, "status")),
+    portfolio_url: asString(field(f, "portfolio_url")),
   };
 }
 
@@ -120,15 +192,15 @@ function normalizeChallenge(record: { record_id: string; fields: Record<string, 
   const f = record.fields;
   return {
     recordId: record.record_id,
-    challenge_id: asString(f.challenge_id),
-    title: asString(f.title),
-    brief: asString(f.brief),
-    objective: asString(f.objective),
-    deliverables: asString(f.deliverables),
-    rubric: asString(f.rubric),
-    deadline: asString(f.deadline),
-    status: asString(f.status),
-    created_by: asString(f.created_by),
+    challenge_id: asString(field(f, "challenge_id")),
+    title: asString(field(f, "title")),
+    brief: asString(field(f, "brief")),
+    objective: asString(field(f, "objective")),
+    deliverables: asString(field(f, "deliverables")),
+    rubric: asString(field(f, "rubric")),
+    deadline: asString(field(f, "deadline")),
+    status: asString(field(f, "status")),
+    created_by: asString(field(f, "created_by")),
   };
 }
 
@@ -136,21 +208,21 @@ function normalizePortfolio(record: { record_id: string; fields: Record<string, 
   const f = record.fields;
   return {
     recordId: record.record_id,
-    portfolio_item_id: asString(f.portfolio_item_id),
-    student_id: asString(f.student_id),
-    student_name: asString(f.student_name),
-    submission_id: asString(f.submission_id),
-    title: asString(f.title),
-    type: asString(f.type),
-    summary: asString(f.summary),
-    public_description: asString(f.public_description),
-    github_url: asString(f.github_url),
-    demo_url: asString(f.demo_url),
-    cover_image_url: asString(f.cover_image_url),
-    skills: asString(f.skills),
-    ai_feedback_summary: asString(f.ai_feedback_summary),
-    is_public: asBoolean(f.is_public),
-    created_at: asString(f.created_at),
+    portfolio_item_id: asString(field(f, "portfolio_item_id")),
+    student_id: asString(field(f, "student_id")),
+    student_name: asString(field(f, "student_name")),
+    submission_id: asString(field(f, "submission_id")),
+    title: asString(field(f, "title")),
+    type: asString(field(f, "type")),
+    summary: asString(field(f, "summary")),
+    public_description: asString(field(f, "public_description")),
+    github_url: asString(field(f, "github_url")),
+    demo_url: asString(field(f, "demo_url")),
+    cover_image_url: asString(field(f, "cover_image_url")),
+    skills: asString(field(f, "skills")),
+    ai_feedback_summary: asString(field(f, "ai_feedback_summary")),
+    is_public: asBoolean(field(f, "is_public")),
+    created_at: asString(field(f, "created_at")),
   };
 }
 
@@ -162,7 +234,7 @@ async function listRecords(tableId: string) {
 async function createRecord(tableId: string, fields: Record<string, unknown>) {
   const payload = await feishuRequest<FeishuCreateResponse>(createPath(tableId), {
     method: "POST",
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify({ fields: toFeishuFields(fields) }),
   });
   return payload.data?.record;
 }
@@ -222,4 +294,3 @@ export async function createPortfolioItem(fields: Record<string, unknown>) {
   });
   return { portfolio_item_id, recordId: record?.record_id };
 }
-
