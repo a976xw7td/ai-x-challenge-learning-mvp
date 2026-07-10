@@ -16,6 +16,13 @@ import {
   WEBAPP_FALLBACK_STUDENT_AGENT,
 } from "./agents";
 
+// T3: In-memory deduplication map for submission idempotency.
+// Key: `${studentId}:${challengeId}:${githubRepoUrl}`, value: timestamp.
+// Entries expire after 60 seconds. Single-instance only — replace with a
+// shared store (Redis / DB) for multi-instance deployments.
+const dedupeCache = new Map<string, number>();
+const DEDUPE_WINDOW_MS = 60_000;
+
 function validateInput(input: SubmissionInput) {
   const required: Array<[keyof SubmissionInput, string]> = [
     ["studentId", "学生"],
@@ -75,6 +82,19 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
       throw new Error("提交请求来自未受信任的 Agent，已拒绝");
     }
     audit.log(SUBMISSION_TASK_AGENT, "verify_relationship", envelope.from_agent);
+
+    // T3: Deduplication — reject identical submissions within 60s window
+    const dedupeKey = `${input.studentId}:${input.challengeId}:${input.githubRepoUrl}`;
+    const lastTs = dedupeCache.get(dedupeKey);
+    if (lastTs !== undefined && Date.now() - lastTs < DEDUPE_WINDOW_MS) {
+      audit.log(SUBMISSION_TASK_AGENT, "duplicate_submission_rejected", dedupeKey);
+      return {
+        ok: false,
+        error: "重复提交，请勿重试",
+        auditTrail: audit.entries,
+      };
+    }
+    dedupeCache.set(dedupeKey, Date.now());
 
     // 3. Validate payload / identity / challenge state
     validateInput(input);
