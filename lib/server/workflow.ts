@@ -81,6 +81,13 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
     const student = await feishu.getStudentById(input.studentId);
     audit.log(SUBMISSION_TASK_AGENT, "validate_student_identity", student.student_id);
     const challenge = await feishu.getChallengeById(input.challengeId);
+    // T2: validate challenge is open for submission (backward compat: empty/null status = allowed)
+    if (challenge.status && !["published", "active"].includes(challenge.status)) {
+      audit.log(SUBMISSION_TASK_AGENT, "challenge_not_open", challenge.challenge_id, {
+        after_state: { status: challenge.status },
+      });
+      throw new Error(`Challenge 未开放提交：${challenge.status}`);
+    }
     audit.log(SUBMISSION_TASK_AGENT, "validate_challenge", challenge.challenge_id);
 
     // 4. Verify GitHub evidence pointer
@@ -128,6 +135,8 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
         submission_request_id: envelope.request_id,
         audit_log_pointer: audit.traceId,
         review_mode: "teacher_only",
+        github_branch: input.githubBranch || githubCheck.defaultBranch || "",
+        github_commit: githubCheck.latestCommitAt || "",
       },
       audit,
     );

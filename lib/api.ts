@@ -105,6 +105,7 @@ export type SubmitPayload = {
   projectTitle: string;
   projectSummary: string;
   githubRepoUrl: string;
+  githubBranch?: string;
   demoUrl?: string;
   aarText: string;
   selfEvaluationText: string;

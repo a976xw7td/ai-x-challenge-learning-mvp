@@ -90,6 +90,7 @@ export default function SubmitPage() {
       projectTitle,
       projectSummary,
       githubRepoUrl: repoUrl,
+      githubBranch: githubBranch || undefined,
       demoUrl: demoUrl || undefined,
       aarText,
       selfEvaluationText,

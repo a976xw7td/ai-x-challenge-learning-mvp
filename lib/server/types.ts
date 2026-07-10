@@ -35,6 +35,7 @@ export type SubmissionInput = {
   projectTitle: string;
   projectSummary: string;
   githubRepoUrl: string;
+  githubBranch?: string;
   readmeUrl?: string;
   demoUrl?: string;
   aarText: string;
