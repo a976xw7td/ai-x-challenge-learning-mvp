@@ -62,6 +62,9 @@ export default function SubmitPage() {
           <Link href="/challenges">任务</Link>
           <Link href="/submit">提交</Link>
           <Link href="/portfolio">作品集</Link>
+          <Link href="/dashboard">仪表盘</Link>
+          <Link href="/docs">文档</Link>
+          <Link href="/knowledge-base">知识库</Link>
         </nav>
         <div className="userPill">作业提交</div>
       </header>

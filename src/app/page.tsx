@@ -27,6 +27,9 @@ export default async function Dashboard() {
           <Link href="/challenges">任务</Link>
           <Link href="/submit">提交</Link>
           <Link href="/portfolio">作品集</Link>
+          <Link href="/dashboard">仪表盘</Link>
+          <Link href="/docs">文档</Link>
+          <Link href="/knowledge-base">知识库</Link>
         </nav>
         <div className="userPill">测试学生A</div>
       </header>
@@ -44,10 +47,13 @@ export default async function Dashboard() {
           </div>
         </section>
 
-        <section className="quickActions">
+        <section className="quickActions" style={{ gridTemplateColumns: "repeat(6, 1fr)" }}>
           <Link href="/challenges"><span>任务</span><strong>查看 Challenge</strong></Link>
           <Link href="/submit"><span>作业</span><strong>提交项目</strong></Link>
           <Link href="/portfolio"><span>成果</span><strong>查看作品集</strong></Link>
+          <Link href="/dashboard"><span>数据</span><strong>仪表盘</strong></Link>
+          <Link href="/docs"><span>文档</span><strong>文档中心</strong></Link>
+          <Link href="/knowledge-base"><span>知识</span><strong>知识库</strong></Link>
         </section>
 
         {!health.ok && (
