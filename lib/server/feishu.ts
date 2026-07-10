@@ -294,3 +294,12 @@ export async function createPortfolioItem(fields: Record<string, unknown>) {
   });
   return { portfolio_item_id, recordId: record?.record_id };
 }
+
+export async function createChallenge(fields: Record<string, unknown>) {
+  const challenge_id = asString(fields.challenge_id) || makeId("ch");
+  const record = await createRecord(requireEnv("FEISHU_CHALLENGES_TABLE_ID"), {
+    ...fields,
+    challenge_id,
+  });
+  return { challenge_id, recordId: record?.record_id };
+}

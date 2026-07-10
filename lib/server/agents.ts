@@ -16,6 +16,7 @@ import {
 export const WEBAPP_FALLBACK_STUDENT_AGENT = "student-companion-webapp-fallback";
 export const SUBMISSION_TASK_AGENT = "submission-task-agent-001";
 export const REVIEW_TASK_AGENT = "review-task-agent-001";
+export const WEBAPP_FALLBACK_TEACHER_AGENT = "teacher-companion-webapp-fallback";
 export const ADMIN_IDENTITY_MODE = "teacher_delegated" as const;
 
 // ---- Agent Manifests (T4: loaded and validated at import time) ----
@@ -45,6 +46,15 @@ export const TRUSTED_RELATIONSHIPS: TrustedRelationship[] = [
     relationship_type: "task-agent",
     trust_level: "auto",
     permissions: ["review_request"],
+    expiration: null,
+  },
+  {
+    relationship_id: "rel-teacher-to-submission",
+    agent_a: WEBAPP_FALLBACK_TEACHER_AGENT,
+    agent_b: SUBMISSION_TASK_AGENT,
+    relationship_type: "task-agent",
+    trust_level: "auto",
+    permissions: ["challenge_publish"],
     expiration: null,
   },
 ].map((r) => TrustedRelationshipSchema.parse(r));

@@ -20,6 +20,50 @@ export default function TeacherPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
+  // T5: Publish Challenge form state
+  const [showPublishForm, setShowPublishForm] = useState(false);
+  const [pubTitle, setPubTitle] = useState("");
+  const [pubBrief, setPubBrief] = useState("");
+  const [pubObjective, setPubObjective] = useState("");
+  const [pubDeliverables, setPubDeliverables] = useState("");
+  const [pubRubric, setPubRubric] = useState("");
+  const [pubDeadline, setPubDeadline] = useState("");
+  const [pubLoading, setPubLoading] = useState(false);
+  const [pubResult, setPubResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const handlePublish = async () => {
+    setPubLoading(true);
+    setPubResult(null);
+    try {
+      const res = await fetch("/api/challenges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: pubTitle,
+          brief: pubBrief,
+          objective: pubObjective,
+          deliverables: pubDeliverables,
+          rubric: pubRubric,
+          deadline: pubDeadline,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setPubResult({ ok: true, message: `Challenge 发布成功！ID: ${data.challengeId}` });
+        setPubTitle(""); setPubBrief(""); setPubObjective("");
+        setPubDeliverables(""); setPubRubric(""); setPubDeadline("");
+      } else {
+        const errMsg = data.missingFields
+          ? `缺少：${data.missingFields.join("、")}`
+          : data.error || "发布失败";
+        setPubResult({ ok: false, message: errMsg });
+      }
+    } catch {
+      setPubResult({ ok: false, message: "网络错误，请重试" });
+    }
+    setPubLoading(false);
+  };
+
   const totalStudents = students.length;
   const totalSubmissions = submissions.length;
   const reviewedCount = submissions.filter((s) => s.status === "已评分").length;
@@ -40,6 +84,65 @@ export default function TeacherPage() {
       <div>
         <h1 className="text-xl font-semibold text-gray-900">教师控制台</h1>
         <p className="mt-1 text-sm text-gray-500">查看全班提交进度，管理评审流程</p>
+      </div>
+
+      {/* T5: 发布 Challenge 表单 */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">发布新 Challenge</h3>
+            <p className="mt-1 text-sm text-gray-500">创建一个新的挑战任务，发布后学生即可开始提交</p>
+          </div>
+          <button
+            onClick={() => { setShowPublishForm(!showPublishForm); setPubResult(null); }}
+            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+          >
+            {showPublishForm ? "收起" : "发布新 Challenge"}
+          </button>
+        </div>
+
+        {showPublishForm && (
+          <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-900">标题 *</label>
+              <input type="text" value={pubTitle} onChange={(e) => setPubTitle(e.target.value)}
+                placeholder="例如：构建一个 AI 客服机器人" className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-900">简介</label>
+              <textarea value={pubBrief} onChange={(e) => setPubBrief(e.target.value)} rows={2}
+                placeholder="一两句话介绍这个 Challenge 是做什么的" className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-900">目标</label>
+              <textarea value={pubObjective} onChange={(e) => setPubObjective(e.target.value)} rows={2}
+                placeholder="学生完成这个 Challenge 后能学到什么" className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-900">交付物 *</label>
+              <textarea value={pubDeliverables} onChange={(e) => setPubDeliverables(e.target.value)} rows={2}
+                placeholder="需要提交什么：如 GitHub 仓库、Demo 链接、复盘文档等" className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-900">评分标准 *</label>
+              <textarea value={pubRubric} onChange={(e) => setPubRubric(e.target.value)} rows={3}
+                placeholder="按什么标准评分：如代码质量（30%）、AI 使用（20%）、文档（20%）、演示（15%）、复盘（15%）" className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-900">截止时间 *</label>
+              <input type="datetime-local" value={pubDeadline} onChange={(e) => setPubDeadline(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500" />
+            </div>
+            {pubResult && (
+              <div className={`rounded-lg p-3 text-sm ${pubResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                {pubResult.message}
+              </div>
+            )}
+            <button onClick={handlePublish} disabled={pubLoading} className="btn-primary">
+              {pubLoading ? "发布中..." : "发布 Challenge"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 统计卡片 */}
