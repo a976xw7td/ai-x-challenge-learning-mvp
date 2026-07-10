@@ -41,6 +41,7 @@ export type SubmissionInput = {
   aarText: string;
   selfEvaluationText: string;
   isPublic: boolean;
+  reviewMode?: string;
 };
 
 export type GitHubCheck = {

@@ -6,6 +6,7 @@ import * as ai from "./ai";
 import * as feishu from "./feishu";
 import * as github from "./github";
 import type { SubmissionInput, WorkflowResult } from "./types";
+import { ReviewMode } from "../schemas/zod-from-schemas";
 import {
   AuditTrail,
   buildEnvelope,
@@ -116,19 +117,58 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
       after_state: { repoExists: githubCheck.repoExists, score: githubCheck.score },
     });
 
-    // 5. Route to Review Task Agent for AI initial evaluation
-    const reviewEnvelope = buildEnvelope({
-      messageType: "review_request",
-      fromAgent: SUBMISSION_TASK_AGENT,
-      toAgent: REVIEW_TASK_AGENT,
-      payload: { challenge_id: challenge.challenge_id, student_id: student.student_id },
-      auditId: audit.traceId,
-    });
-    audit.log(SUBMISSION_TASK_AGENT, "route_to_review_task_agent", reviewEnvelope.message_id);
-    const aiEvaluation = await ai.evaluateSubmission({ student, challenge, submission: input, githubCheck });
-    audit.log(REVIEW_TASK_AGENT, "generate_ai_evaluation", challenge.challenge_id, {
-      after_state: { scoreTotal: aiEvaluation.scoreTotal },
-    });
+    // 5. Route based on review_mode (T6)
+    const reviewMode = (() => {
+      const raw = input.reviewMode || "teacher_only";
+      const parsed = ReviewMode.safeParse(raw);
+      return parsed.success ? parsed.data : "teacher_only";
+    })();
+
+    let routingStatus: string;
+    let aiEvaluation: Awaited<ReturnType<typeof ai.evaluateSubmission>> | null = null;
+
+    if (reviewMode === "teacher_only") {
+      // Existing behavior: AI initial evaluation
+      const reviewEnvelope = buildEnvelope({
+        messageType: "review_request",
+        fromAgent: SUBMISSION_TASK_AGENT,
+        toAgent: REVIEW_TASK_AGENT,
+        payload: { challenge_id: challenge.challenge_id, student_id: student.student_id },
+        auditId: audit.traceId,
+      });
+      audit.log(SUBMISSION_TASK_AGENT, "route_to_review_task_agent", reviewEnvelope.message_id);
+      aiEvaluation = await ai.evaluateSubmission({ student, challenge, submission: input, githubCheck });
+      audit.log(REVIEW_TASK_AGENT, "generate_ai_evaluation", challenge.challenge_id, {
+        after_state: { scoreTotal: aiEvaluation.scoreTotal },
+      });
+      routingStatus = "routed_to_teacher";
+    } else if (reviewMode === "peer_only") {
+      // TODO: peer allocation pending P2
+      const peerEnvelope = buildEnvelope({
+        messageType: "peer_review_request",
+        fromAgent: SUBMISSION_TASK_AGENT,
+        toAgent: REVIEW_TASK_AGENT,
+        payload: { challenge_id: challenge.challenge_id, student_id: student.student_id, mode: "peer_only" },
+        auditId: audit.traceId,
+      });
+      audit.log(SUBMISSION_TASK_AGENT, "route_to_peer_review", peerEnvelope.message_id, {
+        error_trace: "TODO: peer 分配待 P2 实现",
+      });
+      routingStatus = "routed_to_peer";
+    } else {
+      // teacher_and_peer
+      const bothEnvelope = buildEnvelope({
+        messageType: "peer_review_request",
+        fromAgent: SUBMISSION_TASK_AGENT,
+        toAgent: REVIEW_TASK_AGENT,
+        payload: { challenge_id: challenge.challenge_id, student_id: student.student_id, mode: "teacher_and_peer" },
+        auditId: audit.traceId,
+      });
+      audit.log(SUBMISSION_TASK_AGENT, "route_to_peer_review", bothEnvelope.message_id, {
+        error_trace: "TODO: peer 分配待 P2 实现",
+      });
+      routingStatus = "routed_to_both";
+    }
 
     // 6. Submission Task Agent writes the final Submission Record (red line)
     const submission = await createSubmissionWithAgentFields(
@@ -154,7 +194,8 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
         admin_identity_mode: ADMIN_IDENTITY_MODE,
         submission_request_id: envelope.request_id,
         audit_log_pointer: audit.traceId,
-        review_mode: "teacher_only",
+        review_mode: reviewMode,
+        routing_status: routingStatus,
         github_branch: input.githubBranch || githubCheck.defaultBranch || "",
         github_commit: githubCheck.latestCommitAt || "",
       },
@@ -162,49 +203,59 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
     );
     audit.log(SUBMISSION_TASK_AGENT, "create_submission_record", String(submission.submission_id));
 
-    const evaluation = await feishu.createEvaluation({
-      submission_id: submission.submission_id,
-      student_id: student.student_id,
-      challenge_id: challenge.challenge_id,
-      evaluator_type: "ai",
-      score_total: aiEvaluation.scoreTotal,
-      scores_json: JSON.stringify(aiEvaluation.scores, null, 2),
-      strengths: aiEvaluation.strengths,
-      weaknesses: aiEvaluation.weaknesses,
-      suggestions: aiEvaluation.suggestions,
-      feedback: aiEvaluation.feedback,
-      created_at: new Date().toISOString(),
-    });
-    audit.log(REVIEW_TASK_AGENT, "create_evaluation_record", String(evaluation.evaluation_id));
+    // Only AI evaluation for teacher_only mode; peer modes skip AI eval (TODO P2)
+    if (aiEvaluation) {
+      const evaluation = await feishu.createEvaluation({
+        submission_id: submission.submission_id,
+        student_id: student.student_id,
+        challenge_id: challenge.challenge_id,
+        evaluator_type: "ai",
+        score_total: aiEvaluation.scoreTotal,
+        scores_json: JSON.stringify(aiEvaluation.scores, null, 2),
+        strengths: aiEvaluation.strengths,
+        weaknesses: aiEvaluation.weaknesses,
+        suggestions: aiEvaluation.suggestions,
+        feedback: aiEvaluation.feedback,
+        created_at: new Date().toISOString(),
+      });
+      audit.log(REVIEW_TASK_AGENT, "create_evaluation_record", String(evaluation.evaluation_id));
 
-    const portfolioDescription = await ai.generatePortfolioDescription({
-      student, challenge, submission: input, githubCheck, aiEvaluation,
-    });
-    const portfolioItem = await feishu.createPortfolioItem({
-      student_id: student.student_id,
-      student_name: student.name,
-      submission_id: submission.submission_id,
-      title: input.projectTitle,
-      type: "project",
-      summary: input.projectSummary,
-      public_description: portfolioDescription.publicDescription,
-      github_url: input.githubRepoUrl,
-      demo_url: input.demoUrl || "",
-      cover_image_url: "",
-      skills: portfolioDescription.skills.join(", "),
-      ai_feedback_summary: aiEvaluation.feedback,
-      is_public: input.isPublic,
-      created_at: new Date().toISOString(),
-    });
-    audit.log(SUBMISSION_TASK_AGENT, "create_portfolio_item", String(portfolioItem.portfolio_item_id));
+      const portfolioDescription = await ai.generatePortfolioDescription({
+        student, challenge, submission: input, githubCheck, aiEvaluation,
+      });
+      const portfolioItem = await feishu.createPortfolioItem({
+        student_id: student.student_id,
+        student_name: student.name,
+        submission_id: submission.submission_id,
+        title: input.projectTitle,
+        type: "project",
+        summary: input.projectSummary,
+        public_description: portfolioDescription.publicDescription,
+        github_url: input.githubRepoUrl,
+        demo_url: input.demoUrl || "",
+        cover_image_url: "",
+        skills: portfolioDescription.skills.join(", "),
+        ai_feedback_summary: aiEvaluation.feedback,
+        is_public: input.isPublic,
+        created_at: new Date().toISOString(),
+      });
+      audit.log(SUBMISSION_TASK_AGENT, "create_portfolio_item", String(portfolioItem.portfolio_item_id));
+
+      return {
+        ok: true,
+        submissionId: submission.submission_id,
+        evaluationId: evaluation.evaluation_id,
+        portfolioItemId: portfolioItem.portfolio_item_id,
+        githubCheck,
+        aiEvaluation,
+        auditTrail: audit.entries,
+      };
+    }
 
     return {
       ok: true,
       submissionId: submission.submission_id,
-      evaluationId: evaluation.evaluation_id,
-      portfolioItemId: portfolioItem.portfolio_item_id,
       githubCheck,
-      aiEvaluation,
       auditTrail: audit.entries,
     };
   } catch (error) {
