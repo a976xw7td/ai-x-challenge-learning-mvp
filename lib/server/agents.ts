@@ -4,6 +4,9 @@ import {
   MessageEnvelopeSchema,
   AuditLogSchema,
   TrustedRelationshipSchema,
+  StudentCompanionManifestSchema,
+  SubmissionTaskAgentManifestSchema,
+  ReviewTaskAgentManifestSchema,
   type MessageEnvelope,
   type AuditLog,
   type TrustedRelationship,
@@ -14,6 +17,15 @@ export const WEBAPP_FALLBACK_STUDENT_AGENT = "student-companion-webapp-fallback"
 export const SUBMISSION_TASK_AGENT = "submission-task-agent-001";
 export const REVIEW_TASK_AGENT = "review-task-agent-001";
 export const ADMIN_IDENTITY_MODE = "teacher_delegated" as const;
+
+// ---- Agent Manifests (T4: loaded and validated at import time) ----
+import studentManifestRaw from "../../agents/manifests/student-companion-webapp-fallback.json";
+import submissionManifestRaw from "../../agents/manifests/submission-task-agent-001.json";
+import reviewManifestRaw from "../../agents/manifests/review-task-agent-001.json";
+
+export const STUDENT_COMPANION_MANIFEST = StudentCompanionManifestSchema.parse(studentManifestRaw);
+export const SUBMISSION_TASK_MANIFEST = SubmissionTaskAgentManifestSchema.parse(submissionManifestRaw);
+export const REVIEW_TASK_MANIFEST = ReviewTaskAgentManifestSchema.parse(reviewManifestRaw);
 
 // ---- Trusted Relationship graph (Agent-inbox 7.6 supplement) ----
 export const TRUSTED_RELATIONSHIPS: TrustedRelationship[] = [
