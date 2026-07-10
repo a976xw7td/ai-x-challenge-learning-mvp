@@ -32,15 +32,28 @@ function validateInput(input: SubmissionInput) {
 }
 
 // Feishu rejects unknown field names; agent-extension columns may not exist yet
-// on older Bitable tables, so fall back to the base field set once.
+// on older Bitable tables. Only fall back to the base field set when the error
+// is specifically a field-not-found error (Feishu code 1254045 or FieldNameNotFound).
+// Any other error (network, auth, etc.) is re-thrown to prevent duplicate writes.
 async function createSubmissionWithAgentFields(
   baseFields: Record<string, unknown>,
   agentFields: Record<string, unknown>,
+  audit: AuditTrail,
 ) {
   try {
     return await feishu.createSubmission({ ...baseFields, ...agentFields });
-  } catch {
-    return await feishu.createSubmission(baseFields);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const isFieldNotFound =
+      msg.includes("1254045") ||
+      msg.includes("FieldNameNotFound") ||
+      msg.includes("field not found") ||
+      msg.includes("unknown field");
+    if (isFieldNotFound) {
+      audit.log(SUBMISSION_TASK_AGENT, "agent_fields_dropped", "pending_submission");
+      return await feishu.createSubmission(baseFields);
+    }
+    throw err;
   }
 }
 
@@ -116,6 +129,7 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
         audit_log_pointer: audit.traceId,
         review_mode: "teacher_only",
       },
+      audit,
     );
     audit.log(SUBMISSION_TASK_AGENT, "create_submission_record", String(submission.submission_id));
 
