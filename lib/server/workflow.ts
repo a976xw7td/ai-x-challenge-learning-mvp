@@ -67,6 +67,7 @@ async function createSubmissionWithAgentFields(
 
 export async function submitChallengeProject(input: SubmissionInput): Promise<WorkflowResult> {
   const audit = new AuditTrail();
+  const dedupeKey = `${input.studentId}:${input.challengeId}:${input.githubRepoUrl}`;
   try {
     // 1. Student Companion (webapp fallback) constructs the submission request
     const envelope = buildEnvelope({
@@ -85,7 +86,6 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
     audit.log(SUBMISSION_TASK_AGENT, "verify_relationship", envelope.from_agent);
 
     // T3: Deduplication — reject identical submissions within 60s window
-    const dedupeKey = `${input.studentId}:${input.challengeId}:${input.githubRepoUrl}`;
     const lastTs = dedupeCache.get(dedupeKey);
     if (lastTs !== undefined && Date.now() - lastTs < DEDUPE_WINDOW_MS) {
       audit.log(SUBMISSION_TASK_AGENT, "duplicate_submission_rejected", dedupeKey);
@@ -259,6 +259,9 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
       auditTrail: audit.entries,
     };
   } catch (error) {
+    // Failed submissions must not block a corrected retry within the window;
+    // dedupe only guards against replaying a successful submission.
+    dedupeCache.delete(dedupeKey);
     audit.log(SUBMISSION_TASK_AGENT, "workflow_failed", "submission", {
       error_trace: error instanceof Error ? error.message : String(error),
     });
