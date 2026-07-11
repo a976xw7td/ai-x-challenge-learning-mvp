@@ -14,8 +14,20 @@ import {
   MessageSquare,
   Star,
 } from "lucide-react";
-import { submissions as mockSubmissions, students, challenges } from "@/lib/data";
+import { students } from "@/lib/data";
 import { fetchSubmissions, type SubmissionListItem } from "@/lib/api";
+
+// Type for mapped submission rows
+interface SubmissionRow {
+  id: string;
+  studentName: string;
+  studentId: string;
+  challengeTitle: string;
+  githubRepo: string;
+  submittedAt: string;
+  aiReview: { score: number; feedback: string };
+  status: string;
+}
 
 export default function TeacherPage() {
   const [search, setSearch] = useState("");
@@ -72,37 +84,33 @@ export default function TeacherPage() {
     setReviewLoading(false);
   };
 
-  // T10: Real submissions with mock fallback
+  // T14: Real submissions only (no mock fallback)
   const [realSubmissions, setRealSubmissions] = useState<SubmissionListItem[] | null>(null);
+  const [subsLoading, setSubsLoading] = useState(true);
   useEffect(() => {
     fetchSubmissions().then((r) => {
       if (r.ok && r.submissions) setRealSubmissions(r.submissions);
+      setSubsLoading(false);
     });
   }, []);
 
-  // Merge real + mock: use real when available, fallback to mock
-  const submissions = (() => {
-    if (realSubmissions && realSubmissions.length > 0) {
-      return realSubmissions.map((s) => ({
-        id: s.submission_id,
-        studentName: s.student_name,
-        studentId: s.student_id,
-        challengeTitle: s.project_title,
-        githubRepo: s.github_repo_url?.replace(/^https?:\/\/github\.com\//, "") || "",
-        submittedAt: s.submitted_at || "",
-        aiReview: { score: s.score_total || 0, feedback: "" },
-        status: (() => {
-          const st = s.status || "";
-          if (st === "accepted" || st === "reviewed") return "已评分";
-          if (st === "pending_review" || st === "under_review" || st === "pending_teacher_review") return "待评审";
-          if (st === "needs_revision" || st === "needs_teacher_revision") return "检查失败";
-          if (st === "checking" || st === "validating") return "检查中";
-          return "已提交";
-        })(),
-      }));
-    }
-    return mockSubmissions;
-  })();
+  const submissions: SubmissionRow[] = (realSubmissions || []).map((s) => ({
+    id: s.submission_id,
+    studentName: s.student_name,
+    studentId: s.student_id,
+    challengeTitle: s.project_title,
+    githubRepo: s.github_repo_url?.replace(/^https?:\/\/github\.com\//, "") || "",
+    submittedAt: s.submitted_at || "",
+    aiReview: { score: s.score_total || 0, feedback: "" },
+    status: (() => {
+      const st = s.status || "";
+      if (st === "accepted" || st === "reviewed") return "已评分";
+      if (st === "pending_review" || st === "under_review" || st === "pending_teacher_review") return "待评审";
+      if (st === "needs_revision" || st === "needs_teacher_revision") return "检查失败";
+      if (st === "checking" || st === "validating") return "检查中";
+      return "已提交";
+    })(),
+  }));
 
   const handlePublish = async () => {
     setPubLoading(true);
@@ -352,9 +360,11 @@ export default function TeacherPage() {
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && (
-          <div className="py-8 text-center text-sm text-gray-400">暂无匹配的提交记录</div>
-        )}
+        {subsLoading ? (
+          <div className="py-8 text-center text-sm text-gray-400">加载中...</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-8 text-center text-sm text-gray-400">暂无提交记录</div>
+        ) : null}
       </div>
 
       {/* 班级概览 */}
