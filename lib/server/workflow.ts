@@ -16,6 +16,7 @@ import {
   SUBMISSION_TASK_AGENT,
   WEBAPP_FALLBACK_STUDENT_AGENT,
 } from "./agents";
+import { enqueue, flush } from "./audit-outbox";
 
 // T3: In-memory deduplication map for submission idempotency.
 // Key: `${studentId}:${challengeId}:${githubRepoUrl}`, value: timestamp.
@@ -89,6 +90,8 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
     const lastTs = dedupeCache.get(dedupeKey);
     if (lastTs !== undefined && Date.now() - lastTs < DEDUPE_WINDOW_MS) {
       audit.log(SUBMISSION_TASK_AGENT, "duplicate_submission_rejected", dedupeKey);
+      enqueue(audit.entries);
+      flush();
       return {
         ok: false,
         error: "重复提交，请勿重试",
@@ -241,6 +244,8 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
       });
       audit.log(SUBMISSION_TASK_AGENT, "create_portfolio_item", String(portfolioItem.portfolio_item_id));
 
+      enqueue(audit.entries);
+      flush();
       return {
         ok: true,
         submissionId: submission.submission_id,
@@ -252,6 +257,8 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
       };
     }
 
+    enqueue(audit.entries);
+    flush();
     return {
       ok: true,
       submissionId: submission.submission_id,
@@ -265,6 +272,8 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
     audit.log(SUBMISSION_TASK_AGENT, "workflow_failed", "submission", {
       error_trace: error instanceof Error ? error.message : String(error),
     });
+    enqueue(audit.entries);
+    flush();
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Unknown workflow error",

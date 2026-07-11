@@ -10,6 +10,7 @@ import {
   SUBMISSION_TASK_AGENT,
   WEBAPP_FALLBACK_TEACHER_AGENT,
 } from "./agents";
+import { enqueue, flush } from "./audit-outbox";
 
 export interface PublishChallengeInput {
   title: string;
@@ -42,6 +43,8 @@ export async function publishChallenge(input: PublishChallengeInput): Promise<Pu
     audit.log(WEBAPP_FALLBACK_TEACHER_AGENT, "challenge_publish_validation_failed", "challenge", {
       error_trace: `Missing fields: ${missing.join(", ")}`,
     });
+    enqueue(audit.entries);
+    flush();
     return {
       ok: false,
       error: "缺少必填项",
@@ -87,6 +90,8 @@ export async function publishChallenge(input: PublishChallengeInput): Promise<Pu
     });
     audit.log(SUBMISSION_TASK_AGENT, "create_challenge_record", String(challenge.challenge_id));
 
+    enqueue(audit.entries);
+    flush();
     return {
       ok: true,
       challengeId: challenge.challenge_id,
@@ -96,6 +101,8 @@ export async function publishChallenge(input: PublishChallengeInput): Promise<Pu
     audit.log(SUBMISSION_TASK_AGENT, "challenge_publish_failed", "challenge", {
       error_trace: error instanceof Error ? error.message : String(error),
     });
+    enqueue(audit.entries);
+    flush();
     return {
       ok: false,
       error: error instanceof Error ? error.message : "发布失败",
