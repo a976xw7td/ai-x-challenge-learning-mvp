@@ -72,6 +72,7 @@ const FEISHU_FIELD_NAMES: Record<string, string> = {
   reviewed_at: "评价时间",
   reviewer: "评价人",
   evaluator_type: "评价类型",
+  evaluator_id: "评价人ID",
   score_total: "总分",
   scores_json: "分项分数JSON",
   weaknesses: "不足",
