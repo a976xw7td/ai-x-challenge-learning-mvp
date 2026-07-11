@@ -20,25 +20,25 @@ export function registerHandler(messageType: string, handler: HandlerFn): void {
 
 // ---- P2: Rate limiting (§3.2) ----
 
-const RATE_LIMITS: Record<string, number> = {
-  administrator: 1000,
-  peer: 500,
-  client: 100,
-  anonymous: 120,
+const ROLE_RATE_LIMITS: Record<string, number> = {
+  admin: 1000,
+  teacher: 1000,
+  system: 1000,
+  agent: 500,
+  student: 100,
 };
 
-async function checkRateLimit(principal: string): Promise<boolean> {
+async function checkRateLimit(sp: { person: string; role: string }): Promise<boolean> {
   const redis = getRedis();
-  if (!redis) return true; // no Redis → no rate limit
+  if (!redis) return true;
 
-  const hour = new Date().toISOString().slice(0, 13); // "2026-07-12T03"
-  const key = `ratelimit:${principal}:${hour}`;
+  const hour = new Date().toISOString().slice(0, 13);
+  const key = `ratelimit:${sp.person}:${hour}`;
 
   const count = await redis.incr(key);
   if (count === 1) await redis.expire(key, 3600);
 
-  // Default to client limit (100/h) if role unknown
-  const limit = RATE_LIMITS.client;
+  const limit = ROLE_RATE_LIMITS[sp.role] ?? 100;
   return count <= limit;
 }
 
@@ -57,7 +57,7 @@ export async function handleMessage(envelope: MessageEnvelope): Promise<void> {
     }
 
     // P2: Rate limiting
-    const withinLimit = await checkRateLimit(fromSP.person);
+    const withinLimit = await checkRateLimit(fromSP);
     if (!withinLimit) {
       console.warn(`[handler] Rate limited: ${fromSP.person}`);
       return;

@@ -31,11 +31,25 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: "提交记录不存在" }, { status: 404 });
       }
 
-      // Verify this user is the assigned peer (student_id != evaluator)
+      // Verify this user is the assigned peer
       if (submission.student_id === principal.person) {
         return NextResponse.json(
           { ok: false, error: "不能评审自己的提交" },
           { status: 403 },
+        );
+      }
+
+      // Check if already reviewed (dedup)
+      const existingEvaluations = await feishu.getEvaluationsBySubmission(submissionId);
+      const alreadyReviewed = existingEvaluations.some(
+        (e: Record<string, unknown>) =>
+          e.evaluator_type === "peer" &&
+          (e as Record<string, unknown>).evaluator_id === principal.person
+      );
+      if (alreadyReviewed) {
+        return NextResponse.json(
+          { ok: false, error: "你已提交过同伴评审，请勿重复提交" },
+          { status: 409 },
         );
       }
 

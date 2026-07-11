@@ -288,6 +288,19 @@ export async function createEvaluation(fields: Record<string, unknown>) {
   return { evaluation_id, recordId: record?.record_id };
 }
 
+// ---- Evaluations query (P2) ----
+
+export async function getEvaluationsBySubmission(submissionId: string): Promise<Array<Record<string, unknown>>> {
+  const rows = await listRecords(requireEnv("FEISHU_EVALUATIONS_TABLE_ID"));
+  return rows
+    .filter((r) => {
+      const f = r.fields;
+      const sid = field(f, "submission_id");
+      return asString(sid) === submissionId;
+    })
+    .map((r) => r.fields);
+}
+
 export async function createPortfolioItem(fields: Record<string, unknown>) {
   const portfolio_item_id = asString(fields.portfolio_item_id) || makeId("pf");
   const record = await createRecord(requireEnv("FEISHU_PORTFOLIO_TABLE_ID"), {
