@@ -11,6 +11,7 @@ import {
   WEBAPP_FALLBACK_TEACHER_AGENT,
 } from "./agents";
 import { enqueue, flush } from "./audit-outbox";
+import { notifyGroup } from "./notify";
 
 export interface PublishChallengeInput {
   title: string;
@@ -89,6 +90,16 @@ export async function publishChallenge(input: PublishChallengeInput): Promise<Pu
       created_by: WEBAPP_FALLBACK_TEACHER_AGENT,
     });
     audit.log(SUBMISSION_TASK_AGENT, "create_challenge_record", String(challenge.challenge_id));
+
+    // T8: notify class group about new challenge
+    notifyGroup(`📢 新 Challenge 已发布！
+标题：${input.title}
+简介：${input.brief || "暂无"}
+截止时间：${input.deadline}
+交付物：${input.deliverables}
+请同学们及时查看并提交！`).then((result) => {
+      if (!result.ok && !result.skipped) audit.log(WEBAPP_FALLBACK_TEACHER_AGENT, "notify_failed", "group", { error_trace: result.error });
+    });
 
     enqueue(audit.entries);
     flush();

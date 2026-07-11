@@ -17,6 +17,7 @@ import {
   WEBAPP_FALLBACK_STUDENT_AGENT,
 } from "./agents";
 import { enqueue, flush } from "./audit-outbox";
+import { notifyStudent } from "./notify";
 
 // T3: In-memory deduplication map for submission idempotency.
 // Key: `${studentId}:${challengeId}:${githubRepoUrl}`, value: timestamp.
@@ -246,6 +247,12 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
 
       enqueue(audit.entries);
       flush();
+      // T8: notify student of submission success (with AI score)
+      notifyStudent(input.studentId,
+        `✅ 提交成功！你的项目「${input.projectTitle}」已提交。\nAI 初评得分：${aiEvaluation.scoreTotal}/100\n评语：${aiEvaluation.feedback}`
+      ).then((result) => {
+        if (!result.ok) audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
+      });
       return {
         ok: true,
         submissionId: submission.submission_id,
@@ -272,6 +279,12 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
     audit.log(SUBMISSION_TASK_AGENT, "workflow_failed", "submission", {
       error_trace: error instanceof Error ? error.message : String(error),
     });
+    // T8: notify student of submission failure
+    const errMsg = error instanceof Error ? error.message : "未知错误";
+    notifyStudent(input.studentId, `❌ 提交失败：${errMsg}`)
+      .then((result) => {
+        if (!result.ok) audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
+      });
     enqueue(audit.entries);
     flush();
     return {
