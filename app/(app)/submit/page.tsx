@@ -13,7 +13,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { type Challenge } from "@/lib/data";
-import { fetchChallenges, checkGithubRepo, submitProject } from "@/lib/api";
+import { fetchChallenges, checkGithubRepo, submitProject, fetchCurrentUser } from "@/lib/api";
 
 type Step = "select" | "fill" | "checking" | "result";
 
@@ -38,6 +38,14 @@ export default function SubmitPage() {
 
   useEffect(() => {
     fetchChallenges().then((r) => setChallenges(r.items));
+    // T9: Read studentId from session
+    fetchCurrentUser().then((user) => {
+      if (user.ok && user.person) {
+        setStudentId(user.person);
+      } else {
+        router.push("/login");
+      }
+    });
   }, []);
   const [selectedChallenge, setSelectedChallenge] = useState("");
   const [githubRepo, setGithubRepo] = useState("");
@@ -202,8 +210,8 @@ export default function SubmitPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-900">学生 ID</label>
-                <input type="text" value={studentId} onChange={(e) => setStudentId(e.target.value)} placeholder="例如: stu_001" className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500" />
+                <label className="block text-sm font-medium text-gray-900">学生 ID（自动获取）</label>
+                <input type="text" value={studentId} readOnly className="mt-1 w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm text-gray-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-900">项目名称</label>

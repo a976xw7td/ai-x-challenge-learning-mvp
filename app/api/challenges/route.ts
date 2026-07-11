@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPublishedChallenges } from "@/lib/server/feishu";
 import { publishChallenge } from "@/lib/server/challenge-workflow";
+import { getPrincipal } from "@/lib/server/principal";
 
 export async function GET() {
   try {
@@ -16,6 +17,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    // T9: Only teacher can publish challenges
+    const principal = await getPrincipal();
+    if (!principal || principal.role !== "teacher") {
+      return NextResponse.json(
+        { ok: false, error: "仅教师可发布 Challenge" },
+        { status: 403 },
+      );
+    }
+
     const body = await request.json();
     const result = await publishChallenge(body);
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });
@@ -26,4 +36,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

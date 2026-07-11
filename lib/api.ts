@@ -124,3 +124,30 @@ export async function submitProject(payload: SubmitPayload): Promise<{ ok: boole
     return { ok: false, error: e instanceof Error ? e.message : "提交失败" };
   }
 }
+
+// ---- Auth (T9) ----
+
+export type LoginPayload = { studentId: string; name: string };
+export type UserInfo = { person: string; role: string; name?: string };
+
+export async function login(payload: LoginPayload): Promise<{ ok: boolean; error?: string; person?: string; role?: string; name?: string }> {
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "登录失败" };
+  }
+}
+
+export async function fetchCurrentUser(): Promise<{ ok: boolean; person?: string; role?: string; error?: string }> {
+  try {
+    const res = await fetch("/api/auth/me");
+    return await res.json();
+  } catch {
+    return { ok: false, error: "网络错误" };
+  }
+}
