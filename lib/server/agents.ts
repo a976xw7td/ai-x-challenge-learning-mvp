@@ -119,9 +119,7 @@ export function buildEnvelope(params: {
   // Relaxed parse: allow extended message types
   try {
     return MessageEnvelopeSchema.parse(raw);
-  } catch (e) {
-    console.warn("[buildEnvelope] v1 parse failed, trying relaxed:", e instanceof Error ? e.message : String(e));
-    console.warn("[buildEnvelope] raw audit_trace_pointer:", raw.audit_trace_pointer);
+  } catch {
     // Extended type: strip message_type for schema check, then restore
     const { message_type, ...rest } = raw;
     const base = MessageEnvelopeSchema.omit({ message_type: true }).parse(rest);
