@@ -98,7 +98,11 @@ export async function publishChallenge(input: PublishChallengeInput): Promise<Pu
 截止时间：${input.deadline}
 交付物：${input.deliverables}
 请同学们及时查看并提交！`).then((result) => {
-      if (!result.ok && !result.skipped) audit.log(WEBAPP_FALLBACK_TEACHER_AGENT, "notify_failed", "group", { error_trace: result.error });
+      if (!result.ok && !result.skipped) {
+        const entry = audit.log(WEBAPP_FALLBACK_TEACHER_AGENT, "notify_failed", "group", { error_trace: result.error });
+        enqueue([entry]);
+        flush();
+      }
     });
 
     enqueue(audit.entries);

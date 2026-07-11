@@ -106,7 +106,11 @@ ${actionText}
 分数：${input.score}/100
 评语：${input.feedback}`
     ).then((result) => {
-      if (!result.ok) audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
+      if (!result.ok) {
+        const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
+        enqueue([entry]);
+        flush();
+      }
     });
 
     enqueue(audit.entries);

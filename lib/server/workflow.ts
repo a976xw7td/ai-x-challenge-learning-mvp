@@ -251,7 +251,11 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
       notifyStudent(input.studentId,
         `✅ 提交成功！你的项目「${input.projectTitle}」已提交。\nAI 初评得分：${aiEvaluation.scoreTotal}/100\n评语：${aiEvaluation.feedback}`
       ).then((result) => {
-        if (!result.ok) audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
+        if (!result.ok) {
+          const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
+          enqueue([entry]);
+          flush();
+        }
       });
       return {
         ok: true,
@@ -283,7 +287,11 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
     const errMsg = error instanceof Error ? error.message : "未知错误";
     notifyStudent(input.studentId, `❌ 提交失败：${errMsg}`)
       .then((result) => {
-        if (!result.ok) audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
+        if (!result.ok) {
+          const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
+          enqueue([entry]);
+          flush();
+        }
       });
     enqueue(audit.entries);
     flush();
