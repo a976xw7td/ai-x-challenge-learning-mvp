@@ -12,6 +12,8 @@ import {
   REVIEW_TASK_AGENT,
   isTrusted,
 } from "./agents";
+import { checkTrust, agentToSP, type PrincipalMatch } from "./service-principal";
+import type { ServicePrincipal } from "../schemas/envelope-v2.schema";
 
 type HandlerFn = (envelope: MessageEnvelope) => Promise<void>;
 
@@ -27,17 +29,30 @@ export function registerHandler(messageType: string, handler: HandlerFn): void {
  * The unified message entry point. All agent messages flow through here.
  *
  * Steps:
- *  1. Validate trust (isTrusted)
+ *  1. Validate trust via Service Principal (T21) — fallback to v1 isTrusted
  *  2. Route to registered handler
- *  3. Log
  */
 export async function handleMessage(envelope: MessageEnvelope): Promise<void> {
-  // Validate trust relationship
-  if (!isTrusted(envelope.from_agent, envelope.to_agent)) {
-    console.warn(
-      `[handler] Untrusted message rejected: ${envelope.from_agent} → ${envelope.to_agent} (${envelope.message_type})`,
-    );
-    return;
+  // T21: Service Principal trust check with message-type awareness
+  const fromSP = agentToSP(envelope.from_agent);
+  const toSP = agentToSP(envelope.to_agent);
+
+  if (fromSP && toSP) {
+    const trust = checkTrust(fromSP, toSP, envelope.message_type);
+    if (!trust.allowed) {
+      console.warn(
+        `[handler] Untrusted: ${envelope.from_agent} → ${envelope.to_agent} (${envelope.message_type}): ${trust.reason}`,
+      );
+      return;
+    }
+  } else {
+    // Fallback to v1 isTrusted for unknown agents
+    if (!isTrusted(envelope.from_agent, envelope.to_agent)) {
+      console.warn(
+        `[handler] Untrusted (v1 fallback): ${envelope.from_agent} → ${envelope.to_agent} (${envelope.message_type})`,
+      );
+      return;
+    }
   }
 
   const handler = handlers.get(envelope.message_type);

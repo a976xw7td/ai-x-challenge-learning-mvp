@@ -12,6 +12,7 @@ import {
   type AuditLog,
   type TrustedRelationship,
 } from "../schemas/zod-from-schemas";
+import { isTrustedV2 } from "./service-principal";
 
 // ---- Agent identities (WebApp fallback mode, whitepaper §7.4 phase 1) ----
 export const WEBAPP_FALLBACK_STUDENT_AGENT = "student-companion-webapp-fallback";
@@ -63,9 +64,9 @@ export const TRUSTED_RELATIONSHIPS: TrustedRelationship[] = [
 ].map((r) => TrustedRelationshipSchema.parse(r));
 
 export function isTrusted(fromAgent: string, toAgent: string): boolean {
-  return TRUSTED_RELATIONSHIPS.some(
-    (r) => r.agent_a === fromAgent && r.agent_b === toAgent && r.trust_level === "auto",
-  );
+  // T21: Delegate to Service Principal-based trust check
+  // Old hardcoded list is kept as comment for reference
+  return isTrustedV2(fromAgent, toAgent);
 }
 
 // ---- Extended message types (not in Team3 enum, v3.1 additions) ----
