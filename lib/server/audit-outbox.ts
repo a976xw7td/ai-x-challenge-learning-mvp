@@ -5,7 +5,14 @@ import { requireEnv } from "./env";
 import { makeId } from "./ids";
 import type { AuditLog } from "../schemas/zod-from-schemas";
 
-const AUDITLOGS_TABLE_ID = requireEnv("FEISHU_AUDITLOGS_TABLE_ID");
+let AUDITLOGS_TABLE_ID: string | null = null;
+
+function getAuditLogsTableId(): string {
+  if (!AUDITLOGS_TABLE_ID) {
+    AUDITLOGS_TABLE_ID = requireEnv("FEISHU_AUDITLOGS_TABLE_ID");
+  }
+  return AUDITLOGS_TABLE_ID;
+}
 
 // In-process outbox queue
 let outbox: AuditLog[] = [];
@@ -86,7 +93,7 @@ async function writeSingleAuditRecord(
   };
 
   const resp = await fetch(
-    `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${AUDITLOGS_TABLE_ID}/records`,
+    `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${getAuditLogsTableId()}/records`,
     {
       method: "POST",
       headers: {
