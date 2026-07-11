@@ -12,18 +12,26 @@ import {
   Search,
   Clock,
   TrendingUp,
+  Loader2,
+  PackageOpen,
 } from "lucide-react";
-import { portfolioItems as mockPortfolioItems, type PortfolioItem } from "@/lib/data";
+import type { PortfolioItem } from "@/lib/data";
 import { fetchPortfolio } from "@/lib/api";
 
 export default function PortfolioPage() {
   const [search, setSearch] = useState("");
-  const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>(mockPortfolioItems);
+  const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [live, setLive] = useState(false);
+  const [showPublicOnly, setShowPublicOnly] = useState(false);
 
   useEffect(() => {
-    fetchPortfolio().then((r) => { if (r.live) setPortfolioItems(r.items); });
+    fetchPortfolio().then((r) => {
+      setPortfolioItems(r.items);
+      setLive(r.live);
+      setLoading(false);
+    });
   }, []);
-  const [showPublicOnly, setShowPublicOnly] = useState(false);
 
   const filtered = portfolioItems.filter((item) => {
     const matchesSearch =
@@ -36,6 +44,38 @@ export default function PortfolioPage() {
   });
 
   const publicCount = portfolioItems.filter((p) => p.isPublic).length;
+  const avgScore = portfolioItems.length > 0
+    ? Math.round(portfolioItems.reduce((a, b) => a + b.aiScore, 0) / portfolioItems.length)
+    : 0;
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+        <p className="mt-3 text-sm text-gray-500">加载作品中...</p>
+      </div>
+    );
+  }
+
+  // Empty state
+  if (portfolioItems.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <PackageOpen className="h-12 w-12 text-gray-300" />
+        <p className="mt-4 text-sm font-medium text-gray-500">暂无作品</p>
+        <p className="mt-1 text-xs text-gray-400">
+          {live ? "提交项目后，作品将在这里展示" : "无法连接服务器，请稍后重试"}
+        </p>
+        <Link
+          href="/submit"
+          className="mt-4 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600"
+        >
+          提交项目
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -86,9 +126,7 @@ export default function PortfolioPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">平均 AI 评分</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {Math.round(portfolioItems.reduce((a, b) => a + b.aiScore, 0) / portfolioItems.length)}
-              </p>
+              <p className="text-2xl font-bold text-gray-900">{avgScore}</p>
             </div>
             <div className="rounded-lg bg-amber-50 p-2"><TrendingUp className="h-5 w-5 text-amber-600" /></div>
           </div>

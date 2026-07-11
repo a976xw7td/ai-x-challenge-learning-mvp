@@ -56,7 +56,7 @@ export async function fetchPortfolio(): Promise<{ items: PortfolioItem[]; live: 
     const res = await fetch("/api/portfolio");
     const data = await res.json();
     const list = data.portfolioItems ?? data.items;
-    if (!data.ok || !Array.isArray(list) || list.length === 0) throw new Error();
+    if (!data.ok || !Array.isArray(list)) throw new Error();
     const items: PortfolioItem[] = (list as BackendPortfolioItem[]).map((p) => ({
       id: p.portfolio_item_id || p.submission_id || p.title,
       studentName: p.student_name,
