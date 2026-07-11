@@ -1,0 +1,62 @@
+// Unified message handler — T19 handle_message (§3.4 of whitepaper).
+// This is the SINGLE entry point for all agent-to-agent messages.
+// API routes publish envelopes; consumers call this handler; no direct
+// workflow calls bypass this path.
+//
+// Consumer groups:
+//   - submission-task-agent: handles submission_request
+//   - review-task-agent:    handles review_request, peer_review_request, manual_review_adjustment
+import type { MessageEnvelope } from "../schemas/zod-from-schemas";
+import {
+  SUBMISSION_TASK_AGENT,
+  REVIEW_TASK_AGENT,
+  isTrusted,
+} from "./agents";
+
+type HandlerFn = (envelope: MessageEnvelope) => Promise<void>;
+
+const handlers = new Map<string, HandlerFn>();
+
+/** Register a handler for a message type. Called at startup. */
+export function registerHandler(messageType: string, handler: HandlerFn): void {
+  handlers.set(messageType, handler);
+  console.log(`[handler] Registered: ${messageType}`);
+}
+
+/**
+ * The unified message entry point. All agent messages flow through here.
+ *
+ * Steps:
+ *  1. Validate trust (isTrusted)
+ *  2. Route to registered handler
+ *  3. Log
+ */
+export async function handleMessage(envelope: MessageEnvelope): Promise<void> {
+  // Validate trust relationship
+  if (!isTrusted(envelope.from_agent, envelope.to_agent)) {
+    console.warn(
+      `[handler] Untrusted message rejected: ${envelope.from_agent} → ${envelope.to_agent} (${envelope.message_type})`,
+    );
+    return;
+  }
+
+  const handler = handlers.get(envelope.message_type);
+  if (!handler) {
+    console.warn(`[handler] No handler for message type: ${envelope.message_type}`);
+    return;
+  }
+
+  console.log(
+    `[handler] Dispatching ${envelope.message_type} (${envelope.from_agent} → ${envelope.to_agent})`,
+  );
+
+  try {
+    await handler(envelope);
+  } catch (err) {
+    console.error(
+      `[handler] Error handling ${envelope.message_type}:`,
+      err instanceof Error ? err.message : err,
+    );
+    throw err; // re-throw so consumer doesn't ACK → pending redelivery
+  }
+}
