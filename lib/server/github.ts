@@ -61,6 +61,7 @@ export async function checkRepoHealth(repoUrl: string): Promise<GitHubCheck> {
 
   let readmeExists = false;
   let latestCommitAt: string | undefined;
+  let latestCommitSha: string | undefined;
   let defaultBranch: string | undefined;
 
   if (repoExists) {
@@ -71,6 +72,7 @@ export async function checkRepoHealth(repoUrl: string): Promise<GitHubCheck> {
 
     const commit = await getLatestCommit(parsed.owner, parsed.repo);
     latestCommitAt = commit?.commit?.committer?.date;
+    latestCommitSha = commit?.sha;
     if (!latestCommitAt) warnings.push("未检测到最近提交");
   }
 
@@ -83,6 +85,7 @@ export async function checkRepoHealth(repoUrl: string): Promise<GitHubCheck> {
     repoAccessible: repoExists,
     readmeExists,
     latestCommitAt,
+    latestCommitSha,
     defaultBranch,
     warnings,
     score: Math.min(score, 100),

@@ -52,6 +52,7 @@ export type GitHubCheck = {
   repoAccessible: boolean;
   readmeExists: boolean;
   latestCommitAt?: string;
+  latestCommitSha?: string;
   defaultBranch?: string;
   warnings: string[];
   score: number;

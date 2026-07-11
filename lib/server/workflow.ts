@@ -201,7 +201,7 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
         review_mode: reviewMode,
         routing_status: routingStatus,
         github_branch: input.githubBranch || githubCheck.defaultBranch || "",
-        github_commit: githubCheck.latestCommitAt || "",
+        github_commit: githubCheck.latestCommitSha || "",
       },
       audit,
     );

@@ -5,6 +5,7 @@ import {
   AuditLogSchema,
   TrustedRelationshipSchema,
   StudentCompanionManifestSchema,
+  TeacherCompanionManifestSchema,
   SubmissionTaskAgentManifestSchema,
   ReviewTaskAgentManifestSchema,
   type MessageEnvelope,
@@ -23,10 +24,12 @@ export const ADMIN_IDENTITY_MODE = "teacher_delegated" as const;
 import studentManifestRaw from "../../agents/manifests/student-companion-webapp-fallback.json";
 import submissionManifestRaw from "../../agents/manifests/submission-task-agent-001.json";
 import reviewManifestRaw from "../../agents/manifests/review-task-agent-001.json";
+import teacherManifestRaw from "../../agents/manifests/teacher-companion-webapp-fallback.json";
 
 export const STUDENT_COMPANION_MANIFEST = StudentCompanionManifestSchema.parse(studentManifestRaw);
 export const SUBMISSION_TASK_MANIFEST = SubmissionTaskAgentManifestSchema.parse(submissionManifestRaw);
 export const REVIEW_TASK_MANIFEST = ReviewTaskAgentManifestSchema.parse(reviewManifestRaw);
+export const TEACHER_COMPANION_MANIFEST = TeacherCompanionManifestSchema.parse(teacherManifestRaw);
 
 // ---- Trusted Relationship graph (Agent-inbox 7.6 supplement) ----
 export const TRUSTED_RELATIONSHIPS: TrustedRelationship[] = [
@@ -77,6 +80,17 @@ function uid(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}${seq.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
+import { createHmac } from "crypto";
+import { optionalEnv } from "./env";
+
+function signEnvelope(messageId: string, timestamp: string): string | undefined {
+  const secret = optionalEnv("SESSION_SECRET");
+  if (!secret) return undefined;
+  return createHmac("sha256", secret)
+    .update(messageId + timestamp)
+    .digest("hex");
+}
+
 export function buildEnvelope(params: {
   messageType: AllMessageTypes;
   fromAgent: string;
@@ -84,16 +98,21 @@ export function buildEnvelope(params: {
   payload: Record<string, unknown>;
   auditId: string;
 }): MessageEnvelope {
+  const messageId = uid("msg");
+  const timestamp = new Date().toISOString();
+  const signature = signEnvelope(messageId, timestamp);
+
   // For extended types, use relaxed validation (skip strict MessageType enum check)
   const raw = {
-    message_id: uid("msg"),
+    message_id: messageId,
     request_id: uid("req"),
     from_agent: params.fromAgent,
     to_agent: params.toAgent,
     message_type: params.messageType,
-    timestamp: new Date().toISOString(),
+    timestamp,
     payload: params.payload,
     audit_trace_pointer: params.auditId,
+    ...(signature ? { signature } : {}),
   };
 
   // Relaxed parse: allow extended message types
