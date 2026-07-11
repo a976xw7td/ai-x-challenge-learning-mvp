@@ -50,14 +50,14 @@ async function getTenantToken(): Promise<string> {
 // ---- Feishu field name mapping for AuditLogs table ----
 const AUDIT_FIELD_NAMES: Record<string, string> = {
   audit_id: "审计ID",
-  timestamp: "时间戳",
+  timestamp: "操作时间",
   agent_id: "Agent ID",
-  action: "操作",
+  action: "操作类型",
   target_resource: "目标资源",
   related_message_id: "关联消息ID",
-  before_state: "变更前状态",
-  after_state: "变更后状态",
-  error_trace: "错误信息",
+  before_state: "操作前状态",
+  after_state: "操作后状态",
+  error_trace: "附加元数据",
 };
 
 function toFeishuFields(fields: Record<string, unknown>): Record<string, unknown> {
