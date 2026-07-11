@@ -46,12 +46,13 @@ export async function POST(request: Request) {
       await createTask(taskId, "submission_request", input.studentId);
 
       // Publish envelope to Redis Stream
+      const auditTraceId = makeId("audit");
       const envelope = buildEnvelope({
         messageType: "submission_request",
         fromAgent: "student-companion-webapp-fallback",
         toAgent: SUBMISSION_TASK_AGENT,
         payload: input as unknown as Record<string, unknown>,
-        auditId: taskId,
+        auditId: auditTraceId,
       });
 
       const streamId = await publishEnvelope(envelope);
