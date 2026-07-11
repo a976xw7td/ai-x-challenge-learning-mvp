@@ -2,13 +2,10 @@
 """T23.1: Redis FLUSHALL recovery — rebuild cache from Feishu.
 Run: cd ~/elite20-merge/merged && python3 scripts/t23-recovery.py
 
-After FLUSHALL, this script re-populates Redis caches from Feishu Bitable.
-Verifies that business data is never lost because Feishu is the source of truth.
-Zero data loss — all submissions, evaluations, portfolio items are in Feishu.
+After FLUSHALL, re-populates Redis caches from Feishu Bitable.
+Verifies zero data loss — Feishu is the source of truth.
 """
-import json, urllib.request, os, sys
-
-# ---- Helpers ----
+import json, urllib.request, os, sys, redis as redis_lib
 
 def load_env():
     env = {}
@@ -30,9 +27,7 @@ def get_token():
     req = urllib.request.Request(
         "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
         data=json.dumps({"app_id": APP_ID, "app_secret": APP_SECRET}).encode(),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
+        headers={"Content-Type": "application/json"}, method="POST")
     return json.loads(urllib.request.urlopen(req).read())["tenant_access_token"]
 
 TOKEN = get_token()
@@ -53,7 +48,6 @@ def list_records(table_id):
     return resp.get("data", {}).get("items", [])
 
 # ---- Main ----
-
 print("T23.1: FLUSHALL recovery test")
 print("=" * 60)
 
@@ -67,20 +61,14 @@ tables = {
 
 # Connect to Redis
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
-try:
-    import redis as redis_lib
-    r = redis_lib.from_url(REDIS_URL)
-    r.ping()
-    print(f"✓ Redis connected: {REDIS_URL}")
-except Exception as e:
-    print(f"✗ Redis unavailable: {e}")
-    print("  (Start docker compose up first, then re-run)")
-    sys.exit(1)
+r = redis_lib.from_url(REDIS_URL)
+r.ping()
+print(f"Redis connected: {REDIS_URL}")
 
 # FLUSHALL
-print("\n⚠️  FLUSHALL — clearing all Redis data...")
+print("\nFLUSHALL — clearing all Redis data...")
 r.flushall()
-print("✓ FLUSHALL done")
+print("FLUSHALL done")
 
 # Rebuild from Feishu
 total_recovered = 0
@@ -90,23 +78,23 @@ for table_name, table_id in tables.items():
     print(f"  {len(records)} records in Feishu")
 
     for rec in records:
-        # Cache each record
         record_id = rec.get("record_id", "")
         key = f"cache:{table_name.lower()}:{record_id}"
         r.setex(key, 600, json.dumps(rec.get("fields", {}), ensure_ascii=False))
         total_recovered += 1
 
-    print(f"  ✓ {len(records)} cached")
+    print(f"  cached {len(records)} records")
 
 print(f"\n{'=' * 60}")
-print(f"✓ Recovery complete: {total_recovered} records recovered from Feishu")
-print(f"  Zero data loss — Feishu is the source of truth.")
+print(f"Recovery complete: {total_recovered} records from Feishu")
+print(f"Zero data loss — Feishu is the source of truth.")
 
 # Verify
 print(f"\nVerification:")
 for table_name, table_id in tables.items():
     feishu_count = len(list_records(table_id))
     redis_keys = r.keys(f"cache:{table_name.lower()}:*")
-    print(f"  {table_name}: Feishu={feishu_count}, Redis={len(redis_keys)} {'✓' if len(redis_keys) >= feishu_count else '✗'}")
+    match = "PASS" if len(redis_keys) >= feishu_count else "FAIL"
+    print(f"  {table_name}: Feishu={feishu_count}, Redis={len(redis_keys)} [{match}]")
 
-print("\n✓ T23.1 PASSED")
+print(f"\nT23.1 PASSED")

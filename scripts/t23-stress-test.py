@@ -11,6 +11,9 @@ Sends 50 concurrent POST /api/submit requests and reports:
 import json, urllib.request, os, sys, time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# Bypass system proxy for localhost
+os.environ["no_proxy"] = "127.0.0.1,localhost,.local"
+
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:3000")
 CONCURRENT = 50
 CHALLENGE_ID = os.environ.get("CHALLENGE_ID", "cha_demo_001")
@@ -38,7 +41,7 @@ def submit_one(i, cookie):
             "challengeId": CHALLENGE_ID,
             "projectTitle": f"压测任务 #{i}",
             "projectSummary": f"T23 并发压测第 {i} 个提交",
-            "githubRepoUrl": f"https://github.com/zhanghao/nseap-demo",
+            "githubRepoUrl": f"https://github.com/zhanghao/nseap-demo-{i}",
             "aarText": "压测 AAR",
             "selfEvaluationText": "压测自评",
             "isPublic": False,
