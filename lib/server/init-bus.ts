@@ -1,30 +1,99 @@
-// Message bus initialization — called once at server startup (T19).
+// Message bus initialization — called once at server startup (T19 + T20).
 // Registers message handlers and starts Redis Stream consumers.
 import { registerHandler, handleMessage } from "./message-handler";
 import { startConsumer } from "./redis-stream";
+import { updateTaskStatus } from "./tasks";
 import type { MessageEnvelope } from "../schemas/zod-from-schemas";
+import type { SubmissionInput } from "./types";
 
-// ---- Handler stubs (T19: infrastructure only, full handlers in T20) ----
+// ---- Handler implementations ----
 
-function createHandler(label: string): (envelope: MessageEnvelope) => Promise<void> {
-  return async (envelope) => {
-    console.log(`[bus] Handler "${label}" received: ${envelope.message_type} from ${envelope.from_agent}`);
-    // T20: route to actual workflow functions here
-  };
+async function handleSubmissionRequest(envelope: MessageEnvelope): Promise<void> {
+  const taskId = envelope.audit_trace_pointer;
+  console.log(`[bus] Processing submission_request: task=${taskId}`);
+
+  await updateTaskStatus(taskId, "processing");
+
+  try {
+    // Lazy import to avoid circular deps at module init time
+    const { submitChallengeProject } = await import("./workflow");
+    const input = envelope.payload as unknown as SubmissionInput;
+
+    const result = await submitChallengeProject(input);
+
+    await updateTaskStatus(taskId, result.ok ? "completed" : "failed", {
+      ok: result.ok,
+      submissionId: result.submissionId,
+      evaluationId: result.evaluationId,
+      portfolioItemId: result.portfolioItemId,
+      error: result.error,
+    });
+
+    console.log(`[bus] Submission task ${taskId}: ${result.ok ? "completed" : "failed"}`);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    await updateTaskStatus(taskId, "failed", { ok: false, error: errMsg });
+    console.error(`[bus] Submission task ${taskId} failed:`, errMsg);
+    throw err; // re-throw so consumer doesn't ACK
+  }
+}
+
+async function handleReviewRequest(envelope: MessageEnvelope): Promise<void> {
+  console.log(`[bus] Processing review_request: ${envelope.audit_trace_pointer}`);
+  // AI evaluation is handled within submitChallengeProject (synchronous step).
+  // This handler receives review requests routed from submission-task-agent.
+  // For now, the review is triggered inline — T22 will make this truly async.
+}
+
+async function handlePeerReviewRequest(envelope: MessageEnvelope): Promise<void> {
+  console.log(`[bus] Processing peer_review_request (stub — P2)`);
+}
+
+async function handleManualReviewAdjustment(envelope: MessageEnvelope): Promise<void> {
+  const taskId = envelope.audit_trace_pointer;
+  console.log(`[bus] Processing manual_review_adjustment: task=${taskId}`);
+
+  await updateTaskStatus(taskId, "processing");
+
+  try {
+    const { teacherFinalizeReview } = await import("./review-workflow");
+    const input = envelope.payload as unknown as {
+      submissionId: string;
+      submissionRecordId: string;
+      studentId: string;
+      action: "accept" | "return";
+      score: number;
+      feedback: string;
+    };
+
+    const result = await teacherFinalizeReview(input);
+
+    await updateTaskStatus(taskId, result.ok ? "completed" : "failed", {
+      ok: result.ok,
+      error: result.error,
+    });
+
+    console.log(`[bus] Review task ${taskId}: ${result.ok ? "completed" : "failed"}`);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    await updateTaskStatus(taskId, "failed", { ok: false, error: errMsg });
+    console.error(`[bus] Review task ${taskId} failed:`, errMsg);
+    throw err;
+  }
 }
 
 // ---- Startup ----
 
 export async function initMessageBus(): Promise<void> {
   // Register handlers for each message type
-  registerHandler("submission_request", createHandler("submission_request"));
-  registerHandler("review_request", createHandler("review_request"));
-  registerHandler("peer_review_request", createHandler("peer_review_request"));
-  registerHandler("manual_review_adjustment", createHandler("manual_review_adjustment"));
+  registerHandler("submission_request", handleSubmissionRequest);
+  registerHandler("review_request", handleReviewRequest);
+  registerHandler("peer_review_request", handlePeerReviewRequest);
+  registerHandler("manual_review_adjustment", handleManualReviewAdjustment);
 
   console.log("[bus] Message bus initialized with 4 handlers");
 
-  // Start consumers in background (don't block server startup)
+  // Start consumers in background
   const abortController = new AbortController();
 
   startConsumer("submission-task-agent", "submission-consumer-1", async (env, id) => {
