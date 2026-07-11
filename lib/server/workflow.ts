@@ -18,11 +18,14 @@ import {
 } from "./agents";
 import { enqueue, flush } from "./audit-outbox";
 import { notifyStudent } from "./notify";
+import { getRedis } from "./redis";
 
-// T3: In-memory deduplication map for submission idempotency.
-// Key: `${studentId}:${challengeId}:${githubRepoUrl}`, value: timestamp.
-// Entries expire after 60 seconds. Single-instance only — replace with a
-// shared store (Redis / DB) for multi-instance deployments.
+// T22: Redis-backed deduplication for submission idempotency.
+// Key: `${studentId}:${challengeId}:${githubRepoUrl}`, TTL: 60s.
+// Falls back to in-memory Map when Redis is unavailable.
+const DEDUPE_TTL = 60;
+const DEDUPE_PREFIX = "dedup:";
+
 const dedupeCache = new Map<string, number>();
 const DEDUPE_WINDOW_MS = 60_000;
 
@@ -87,19 +90,30 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
     }
     audit.log(SUBMISSION_TASK_AGENT, "verify_relationship", envelope.from_agent);
 
-    // T3: Deduplication — reject identical submissions within 60s window
-    const lastTs = dedupeCache.get(dedupeKey);
-    if (lastTs !== undefined && Date.now() - lastTs < DEDUPE_WINDOW_MS) {
-      audit.log(SUBMISSION_TASK_AGENT, "duplicate_submission_rejected", dedupeKey);
-      enqueue(audit.entries);
-      flush();
-      return {
-        ok: false,
-        error: "重复提交，请勿重试",
-        auditTrail: audit.entries,
-      };
+    // T22: Deduplication — Redis when available, in-memory fallback
+    const redis = getRedis();
+    const dedupeRedisKey = `${DEDUPE_PREFIX}${dedupeKey}`;
+
+    if (redis) {
+      const existing = await redis.get(dedupeRedisKey);
+      if (existing) {
+        audit.log(SUBMISSION_TASK_AGENT, "duplicate_submission_rejected", dedupeKey);
+        enqueue(audit.entries);
+        flush();
+        return { ok: false, error: "重复提交，请勿重试", auditTrail: audit.entries };
+      }
+      await redis.setex(dedupeRedisKey, DEDUPE_TTL, Date.now().toString());
+    } else {
+      // In-memory fallback
+      const lastTs = dedupeCache.get(dedupeKey);
+      if (lastTs !== undefined && Date.now() - lastTs < DEDUPE_WINDOW_MS) {
+        audit.log(SUBMISSION_TASK_AGENT, "duplicate_submission_rejected", dedupeKey);
+        enqueue(audit.entries);
+        flush();
+        return { ok: false, error: "重复提交，请勿重试", auditTrail: audit.entries };
+      }
+      dedupeCache.set(dedupeKey, Date.now());
     }
-    dedupeCache.set(dedupeKey, Date.now());
 
     // 3. Validate payload / identity / challenge state
     validateInput(input);
@@ -278,9 +292,13 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
       auditTrail: audit.entries,
     };
   } catch (error) {
-    // Failed submissions must not block a corrected retry within the window;
-    // dedupe only guards against replaying a successful submission.
-    dedupeCache.delete(dedupeKey);
+    // Failed submissions must not block a corrected retry within the window.
+    const redis = getRedis();
+    if (redis) {
+      await redis.del(`${DEDUPE_PREFIX}${dedupeKey}`).catch(() => {});
+    } else {
+      dedupeCache.delete(dedupeKey);
+    }
     audit.log(SUBMISSION_TASK_AGENT, "workflow_failed", "submission", {
       error_trace: error instanceof Error ? error.message : String(error),
     });
