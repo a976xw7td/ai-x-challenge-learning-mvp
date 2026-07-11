@@ -1,13 +1,15 @@
-// principal.ts — Server-side session-to-Principal resolution (§3.5)
+// principal.ts — Server-side Principal resolution (§3.5)
+// Supports: session cookie (webapp) + API key (Hermes/WorkBuddy agent channels)
 // Principal is ONLY resolved server-side; clients never self-report role.
 import { createHmac } from "crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { optionalEnv } from "./env";
+import { resolveAgentApiKey } from "./agent-auth";
 
 export interface ServicePrincipal {
   person: string;
   org: string;
-  role: string; // "student" | "teacher" | "admin"
+  role: string;
 }
 
 const SESSION_COOKIE = "nseap_session";
@@ -16,7 +18,6 @@ function getSecret(): string {
   return optionalEnv("SESSION_SECRET");
 }
 
-/** HMAC-SHA256 sign a payload */
 export function signToken(payload: Record<string, string>): string {
   const secret = getSecret();
   if (!secret) throw new Error("SESSION_SECRET not configured");
@@ -25,7 +26,6 @@ export function signToken(payload: Record<string, string>): string {
   return Buffer.from(JSON.stringify({ data, hmac })).toString("base64url");
 }
 
-/** Verify HMAC-SHA256 and parse payload. Returns null if invalid. */
 export function verifyToken(token: string): Record<string, string> | null {
   try {
     const secret = getSecret();
@@ -40,34 +40,54 @@ export function verifyToken(token: string): Record<string, string> | null {
   }
 }
 
-/** Resolve Principal from the request's session cookie. Returns null for anonymous. */
+/** Resolve Principal from session cookie. Returns null for anonymous. */
 export async function getPrincipal(): Promise<ServicePrincipal | null> {
   try {
+    // First try session cookie (webapp)
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!token) return null;
-    const payload = verifyToken(token);
-    if (!payload) return null;
-    return {
-      person: payload.person,
-      org: payload.org || "elite20",
-      role: payload.role || "student",
-    };
+    if (token) {
+      const payload = verifyToken(token);
+      if (payload) {
+        return {
+          person: payload.person,
+          org: payload.org || "elite20",
+          role: payload.role || "student",
+        };
+      }
+    }
   } catch {
-    return null;
+    // cookies() throws outside of request context — fall through to agent auth
   }
+
+  // Try API key (agent channels: Hermes/WorkBuddy)
+  return await getAgentPrincipal();
 }
 
-/** Determine role for a given student ID (server-side only). */
+/** Resolve Principal from API key header (for agent channels). */
+export async function getAgentPrincipal(): Promise<ServicePrincipal | null> {
+  try {
+    const hdrs = await headers();
+    const apiKey = hdrs.get("x-api-key");
+    if (!apiKey) return null;
+
+    const sp = resolveAgentApiKey(apiKey.trim());
+    if (sp) {
+      return { person: sp.person, org: sp.org, role: sp.role };
+    }
+  } catch {
+    // headers() throws outside of request context
+  }
+  return null;
+}
+
 export function determineRole(studentId: string, studentsRole?: string): string {
-  // 1. Check TEACHER_IDS env
   const teacherIds = optionalEnv("TEACHER_IDS")
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   if (teacherIds.includes(studentId.toLowerCase())) return "teacher";
 
-  // 2. Check Students table role column
   if (studentsRole && ["teacher", "admin"].includes(studentsRole.toLowerCase())) {
     return studentsRole.toLowerCase();
   }

@@ -32,6 +32,24 @@ const AGENT_TO_SP: Record<string, ServicePrincipal> = {
     org: "elite20",
     role: "system",
   },
+  // P2: Dedicated student agent (AGENT_CN.md §2.2)
+  "student-companion-zhanghao-001": {
+    person: "student-companion-zhanghao-001",
+    org: "elite20",
+    role: "agent",
+  },
+  // P2: Hermes student agent
+  "student-companion-hermes": {
+    person: "student-companion-hermes",
+    org: "elite20",
+    role: "agent",
+  },
+  // P2: WorkBuddy teacher agent
+  "teacher-companion-workbuddy": {
+    person: "teacher-companion-workbuddy",
+    org: "elite20",
+    role: "agent",
+  },
 };
 
 // User principals (students/teachers) are resolved at runtime from login session
@@ -68,6 +86,26 @@ export const RELATIONSHIPS: Relationship[] = [
   {
     relationship_id: "rel-teacher-to-submission",
     from: AGENT_TO_SP["teacher-companion-webapp-fallback"],
+    to: AGENT_TO_SP["submission-task-agent-001"],
+    type: "administrator",
+    capabilities: ["challenge_publish", "manual_review_adjustment"],
+    allowed_channels: ["webapp", "redis-stream"],
+    approval: "auto",
+  },
+  // P2: Zhanghao's dedicated student agent → Submission
+  {
+    relationship_id: "rel-zhanghao-to-submission",
+    from: AGENT_TO_SP["student-companion-zhanghao-001"],
+    to: AGENT_TO_SP["submission-task-agent-001"],
+    type: "client",
+    capabilities: ["submission_request"],
+    allowed_channels: ["feishu", "webapp", "redis-stream"],
+    approval: "auto",
+  },
+  // P2: WorkBuddy teacher agent → Submission
+  {
+    relationship_id: "rel-workbuddy-to-submission",
+    from: AGENT_TO_SP["teacher-companion-workbuddy"],
     to: AGENT_TO_SP["submission-task-agent-001"],
     type: "administrator",
     capabilities: ["challenge_publish", "manual_review_adjustment"],
