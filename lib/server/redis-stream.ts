@@ -39,6 +39,28 @@ async function ensureGroup(redis: ReturnType<typeof getRedis>, group: string): P
 
 export type MessageHandler = (envelope: MessageEnvelope, streamId: string) => Promise<void>;
 
+const DEAD_LETTER = "nseap:dead-letter";
+const MAX_RETRIES = 3;
+
+/** Move a failing message to the dead letter queue and ACK it. */
+async function moveToDeadLetter(
+  redis: ReturnType<typeof getRedis>,
+  group: string,
+  messageId: string,
+  envelope: MessageEnvelope,
+  error: string,
+): Promise<void> {
+  if (!redis) return;
+  await redis.xadd(DEAD_LETTER, "*",
+    "envelope", JSON.stringify(envelope),
+    "error", error,
+    "original_id", messageId,
+    "moved_at", new Date().toISOString(),
+  );
+  await redis.xack(STREAM, group, messageId);
+  console.error(`[stream] DEAD LETTER: ${messageId} (${envelope.message_type}): ${error}`);
+}
+
 export async function startConsumer(
   group: string,
   consumerName: string,
@@ -74,7 +96,16 @@ export async function startConsumer(
             await redis.xack(STREAM, group, id);
             console.log(`[stream] ACK ${id}`);
           } catch (err) {
-            console.error(`[stream] Handler error for ${id}:`, err);
+            const errMsg = err instanceof Error ? err.message : String(err);
+            console.error(`[stream] Handler error for ${id}:`, errMsg);
+
+            // P2: Check retry count — move to dead letter after MAX_RETRIES
+            const pendingInfo = await redis.xpending(STREAM, group, id, id, 1) as Array<[string, string, number, number]> | null;
+            const timesDelivered = pendingInfo?.[0]?.[3] ?? 0;
+            if (timesDelivered >= MAX_RETRIES) {
+              const envelope = JSON.parse(envelopeStr) as MessageEnvelope;
+              await moveToDeadLetter(redis, group, id, envelope, errMsg);
+            }
           }
         }
       }

@@ -1,77 +1,91 @@
-// Unified message handler — T19 handle_message (§3.4 of whitepaper).
-// This is the SINGLE entry point for all agent-to-agent messages.
-// API routes publish envelopes; consumers call this handler; no direct
-// workflow calls bypass this path.
-//
-// Consumer groups:
-//   - submission-task-agent: handles submission_request
-//   - review-task-agent:    handles review_request, peer_review_request, manual_review_adjustment
+// Unified message handler — T19 handle_message (§3.4 of whitepaper)
+// + P2 rate limiting + require-approval check.
 import type { MessageEnvelope } from "../schemas/zod-from-schemas";
 import {
   SUBMISSION_TASK_AGENT,
   REVIEW_TASK_AGENT,
   isTrusted,
 } from "./agents";
-import { checkTrust, agentToSP, type PrincipalMatch } from "./service-principal";
-import type { ServicePrincipal } from "../schemas/envelope-v2.schema";
+import { checkTrust, agentToSP, needsApproval } from "./service-principal";
+import { getRedis } from "./redis";
 
 type HandlerFn = (envelope: MessageEnvelope) => Promise<void>;
 
 const handlers = new Map<string, HandlerFn>();
 
-/** Register a handler for a message type. Called at startup. */
 export function registerHandler(messageType: string, handler: HandlerFn): void {
   handlers.set(messageType, handler);
   console.log(`[handler] Registered: ${messageType}`);
 }
 
-/**
- * The unified message entry point. All agent messages flow through here.
- *
- * Steps:
- *  1. Validate trust via Service Principal (T21) — fallback to v1 isTrusted
- *  2. Route to registered handler
- */
+// ---- P2: Rate limiting (§3.2) ----
+
+const RATE_LIMITS: Record<string, number> = {
+  administrator: 1000,
+  peer: 500,
+  client: 100,
+  anonymous: 120,
+};
+
+async function checkRateLimit(principal: string): Promise<boolean> {
+  const redis = getRedis();
+  if (!redis) return true; // no Redis → no rate limit
+
+  const hour = new Date().toISOString().slice(0, 13); // "2026-07-12T03"
+  const key = `ratelimit:${principal}:${hour}`;
+
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, 3600);
+
+  // Default to client limit (100/h) if role unknown
+  const limit = RATE_LIMITS.client;
+  return count <= limit;
+}
+
+// ---- Main entry point ----
+
 export async function handleMessage(envelope: MessageEnvelope): Promise<void> {
-  // T21: Service Principal trust check with message-type awareness
+  // T21: Service Principal trust check
   const fromSP = agentToSP(envelope.from_agent);
   const toSP = agentToSP(envelope.to_agent);
 
   if (fromSP && toSP) {
     const trust = checkTrust(fromSP, toSP, envelope.message_type);
     if (!trust.allowed) {
-      console.warn(
-        `[handler] Untrusted: ${envelope.from_agent} → ${envelope.to_agent} (${envelope.message_type}): ${trust.reason}`,
-      );
+      console.warn(`[handler] Untrusted: ${envelope.from_agent} → ${envelope.to_agent}: ${trust.reason}`);
       return;
     }
+
+    // P2: Rate limiting
+    const withinLimit = await checkRateLimit(fromSP.person);
+    if (!withinLimit) {
+      console.warn(`[handler] Rate limited: ${fromSP.person}`);
+      return;
+    }
+
+    // P2: require-approval — log and continue (full flow in P3 admin UI)
+    if (needsApproval(fromSP, toSP)) {
+      console.log(`[handler] Approval required: ${fromSP.person} → ${toSP.person} (${envelope.message_type})`);
+    }
   } else {
-    // Fallback to v1 isTrusted for unknown agents
     if (!isTrusted(envelope.from_agent, envelope.to_agent)) {
-      console.warn(
-        `[handler] Untrusted (v1 fallback): ${envelope.from_agent} → ${envelope.to_agent} (${envelope.message_type})`,
-      );
+      console.warn(`[handler] Untrusted (v1): ${envelope.from_agent} → ${envelope.to_agent}`);
       return;
     }
   }
 
   const handler = handlers.get(envelope.message_type);
   if (!handler) {
-    console.warn(`[handler] No handler for message type: ${envelope.message_type}`);
+    console.warn(`[handler] No handler: ${envelope.message_type}`);
     return;
   }
 
-  console.log(
-    `[handler] Dispatching ${envelope.message_type} (${envelope.from_agent} → ${envelope.to_agent})`,
-  );
+  console.log(`[handler] Dispatching ${envelope.message_type} (${envelope.from_agent} → ${envelope.to_agent})`);
 
   try {
     await handler(envelope);
   } catch (err) {
-    console.error(
-      `[handler] Error handling ${envelope.message_type}:`,
-      err instanceof Error ? err.message : err,
-    );
-    throw err; // re-throw so consumer doesn't ACK → pending redelivery
+    console.error(`[handler] Error: ${envelope.message_type}:`, err instanceof Error ? err.message : err);
+    throw err; // re-throw → consumer doesn't ACK → pending redelivery
   }
 }
