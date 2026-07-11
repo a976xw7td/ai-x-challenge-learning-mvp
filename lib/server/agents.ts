@@ -26,11 +26,15 @@ import studentManifestRaw from "../../agents/manifests/student-companion-webapp-
 import submissionManifestRaw from "../../agents/manifests/submission-task-agent-001.json";
 import reviewManifestRaw from "../../agents/manifests/review-task-agent-001.json";
 import teacherManifestRaw from "../../agents/manifests/teacher-companion-webapp-fallback.json";
+import hermesManifestRaw from "../../agents/manifests/hermes-student-companion.json";
+import workbuddyManifestRaw from "../../agents/manifests/workbuddy-teacher-companion.json";
 
 export const STUDENT_COMPANION_MANIFEST = StudentCompanionManifestSchema.parse(studentManifestRaw);
 export const SUBMISSION_TASK_MANIFEST = SubmissionTaskAgentManifestSchema.parse(submissionManifestRaw);
 export const REVIEW_TASK_MANIFEST = ReviewTaskAgentManifestSchema.parse(reviewManifestRaw);
 export const TEACHER_COMPANION_MANIFEST = TeacherCompanionManifestSchema.parse(teacherManifestRaw);
+export const HERMES_STUDENT_MANIFEST = StudentCompanionManifestSchema.parse(hermesManifestRaw);
+export const WORKBUDDY_TEACHER_MANIFEST = TeacherCompanionManifestSchema.parse(workbuddyManifestRaw);
 
 // ---- Trusted Relationship graph (Agent-inbox 7.6 supplement) ----
 export const TRUSTED_RELATIONSHIPS: TrustedRelationship[] = [
