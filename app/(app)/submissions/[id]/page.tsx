@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -19,7 +20,8 @@ import {
   TrendingUp,
   Lightbulb,
 } from "lucide-react";
-import { getSubmissionById } from "@/lib/data";
+import { getSubmissionById as getMockSubmissionById } from "@/lib/data";
+import { fetchSubmissionById, type SubmissionListItem } from "@/lib/api";
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   "已提交": { label: "已提交", color: "bg-blue-50 text-blue-700 border-blue-200", icon: Clock },
@@ -31,7 +33,47 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.E
 
 export default function SubmissionDetailPage() {
   const params = useParams();
-  const submission = getSubmissionById(params.id as string);
+  const id = params.id as string;
+
+  const [realSub, setRealSub] = useState<SubmissionListItem | null | undefined>(undefined);
+  useEffect(() => {
+    fetchSubmissionById(id).then((r) => {
+      setRealSub(r.ok && r.submission ? r.submission : null);
+    });
+  }, [id]);
+
+  // Fallback: real API → mock data
+  const submission = (() => {
+    if (realSub) {
+      return {
+        id: realSub.submission_id,
+        studentName: realSub.student_name,
+        studentId: realSub.student_id,
+        challengeTitle: realSub.project_title,
+        githubRepo: realSub.github_repo_url?.replace(/^https?:\/\/github\.com\//, "") || "",
+        challengeId: realSub.challenge_id,
+        githubBranch: "",
+        submittedAt: realSub.submitted_at || "",
+        reviewedAt: "",
+        aiReview: { score: realSub.score_total || 0, feedback: "", summary: "", strengths: [] as string[], improvements: [] as string[] },
+        status: (() => {
+          const st = realSub.status || "";
+          if (st === "accepted" || st === "reviewed") return "已评分";
+          if (st === "pending_review" || st === "under_review" || st === "pending_teacher_review") return "待评审";
+          if (st === "needs_revision" || st === "needs_teacher_revision") return "检查失败";
+          if (st === "checking" || st === "validating") return "检查中";
+          return "已提交";
+        })(),
+        checkResults: { readme: true, commits: true, demo: true, reflection: true },
+        teacherFeedback: "",
+        teacherScore: 0,
+      };
+    }
+    if (realSub === null) {
+      // API returned no result, fall through to mock
+    }
+    return getMockSubmissionById(id);
+  })() as ReturnType<typeof getMockSubmissionById>;
 
   if (!submission) {
     return (

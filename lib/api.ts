@@ -151,3 +151,38 @@ export async function fetchCurrentUser(): Promise<{ ok: boolean; person?: string
     return { ok: false, error: "网络错误" };
   }
 }
+
+// ---- Submissions (T10) ----
+
+export type SubmissionListItem = {
+  submission_id: string;
+  student_id: string;
+  student_name: string;
+  challenge_id: string;
+  project_title: string;
+  project_summary?: string;
+  github_repo_url?: string;
+  status?: string;
+  task_state?: string;
+  review_mode?: string;
+  submitted_at?: string;
+  score_total?: number;
+};
+
+export async function fetchSubmissions(): Promise<{ ok: boolean; submissions?: SubmissionListItem[]; error?: string }> {
+  try {
+    const res = await fetch("/api/submissions");
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "加载失败" };
+  }
+}
+
+export async function fetchSubmissionById(id: string): Promise<{ ok: boolean; submission?: SubmissionListItem; error?: string }> {
+  try {
+    const res = await fetch(`/api/submissions/${id}`);
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "加载失败" };
+  }
+}

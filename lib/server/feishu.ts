@@ -303,3 +303,93 @@ export async function createChallenge(fields: Record<string, unknown>) {
   });
   return { challenge_id, recordId: record?.record_id };
 }
+
+// ---- Submissions read (T10) ----
+
+export type SubmissionRecord = FeishuRecord<{
+  submission_id: string;
+  student_id: string;
+  student_name: string;
+  challenge_id: string;
+  project_title: string;
+  project_summary?: string;
+  github_repo_url?: string;
+  github_branch?: string;
+  github_commit?: string;
+  github_check_result?: string;
+  demo_url?: string;
+  readme_url?: string;
+  aar_text?: string;
+  self_evaluation_text?: string;
+  status?: string;
+  task_state?: string;
+  review_mode?: string;
+  routing_status?: string;
+  submitted_at?: string;
+  is_public?: boolean;
+  score_total?: number;
+}>;
+
+function normalizeSubmission(record: { record_id: string; fields: Record<string, unknown> }): SubmissionRecord {
+  const f = record.fields;
+  return {
+    recordId: record.record_id,
+    submission_id: asString(field(f, "submission_id")),
+    student_id: asString(field(f, "student_id")),
+    student_name: asString(field(f, "student_name")),
+    challenge_id: asString(field(f, "challenge_id")),
+    project_title: asString(field(f, "project_title")),
+    project_summary: asString(field(f, "project_summary")),
+    github_repo_url: asString(field(f, "github_repo_url")),
+    github_branch: asString(field(f, "github_branch")),
+    github_commit: asString(field(f, "github_commit")),
+    github_check_result: asString(field(f, "github_check_result")),
+    demo_url: asString(field(f, "demo_url")),
+    readme_url: asString(field(f, "readme_url")),
+    aar_text: asString(field(f, "aar_text")),
+    self_evaluation_text: asString(field(f, "self_evaluation_text")),
+    status: asString(field(f, "status")),
+    task_state: asString(field(f, "task_state")),
+    review_mode: asString(field(f, "review_mode")),
+    routing_status: asString(field(f, "routing_status")),
+    submitted_at: asString(field(f, "submitted_at")),
+    is_public: asBoolean(field(f, "is_public")),
+    score_total: Number(field(f, "score_total") || "0"),
+  };
+}
+
+export async function getSubmissions(filter?: { studentId?: string }): Promise<SubmissionRecord[]> {
+  const rows = await listRecords(requireEnv("FEISHU_SUBMISSIONS_TABLE_ID"));
+  let results = rows.map(normalizeSubmission);
+  if (filter?.studentId) {
+    results = results.filter((s) => s.student_id === filter.studentId);
+  }
+  return results;
+}
+
+export async function getSubmissionById(submissionId: string): Promise<SubmissionRecord | null> {
+  const rows = await listRecords(requireEnv("FEISHU_SUBMISSIONS_TABLE_ID"));
+  const found = rows.map(normalizeSubmission).find((s) => s.submission_id === submissionId);
+  return found || null;
+}
+
+// ---- Submissions update (T11) ----
+
+export async function updateSubmission(recordId: string, fields: Record<string, unknown>): Promise<void> {
+  const token = await getTenantAccessToken();
+  const resp = await fetch(
+    `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken()}/tables/${requireEnv("FEISHU_SUBMISSIONS_TABLE_ID")}/records/${recordId}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({ fields: toFeishuFields(fields) }),
+    },
+  );
+  const payload = await resp.json();
+  if (!resp.ok || payload.code !== 0) {
+    throw new Error(`Feishu update failed: ${payload.msg || resp.statusText}`);
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -14,7 +14,8 @@ import {
   MessageSquare,
   Star,
 } from "lucide-react";
-import { submissions, students, challenges } from "@/lib/data";
+import { submissions as mockSubmissions, students, challenges } from "@/lib/data";
+import { fetchSubmissions, type SubmissionListItem } from "@/lib/api";
 
 export default function TeacherPage() {
   const [search, setSearch] = useState("");
@@ -30,6 +31,38 @@ export default function TeacherPage() {
   const [pubDeadline, setPubDeadline] = useState("");
   const [pubLoading, setPubLoading] = useState(false);
   const [pubResult, setPubResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // T10: Real submissions with mock fallback
+  const [realSubmissions, setRealSubmissions] = useState<SubmissionListItem[] | null>(null);
+  useEffect(() => {
+    fetchSubmissions().then((r) => {
+      if (r.ok && r.submissions) setRealSubmissions(r.submissions);
+    });
+  }, []);
+
+  // Merge real + mock: use real when available, fallback to mock
+  const submissions = (() => {
+    if (realSubmissions && realSubmissions.length > 0) {
+      return realSubmissions.map((s) => ({
+        id: s.submission_id,
+        studentName: s.student_name,
+        studentId: s.student_id,
+        challengeTitle: s.project_title,
+        githubRepo: s.github_repo_url?.replace(/^https?:\/\/github\.com\//, "") || "",
+        submittedAt: s.submitted_at || "",
+        aiReview: { score: s.score_total || 0, feedback: "" },
+        status: (() => {
+          const st = s.status || "";
+          if (st === "accepted" || st === "reviewed") return "已评分";
+          if (st === "pending_review" || st === "under_review" || st === "pending_teacher_review") return "待评审";
+          if (st === "needs_revision" || st === "needs_teacher_revision") return "检查失败";
+          if (st === "checking" || st === "validating") return "检查中";
+          return "已提交";
+        })(),
+      }));
+    }
+    return mockSubmissions;
+  })();
 
   const handlePublish = async () => {
     setPubLoading(true);
