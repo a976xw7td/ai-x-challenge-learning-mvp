@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { redisPing } from "@/lib/server/redis";
 
 const required = [
   "FEISHU_APP_ID",
@@ -13,9 +14,12 @@ const required = [
 
 export async function GET() {
   const missing = required.filter((name) => !process.env[name]);
+  const redis = await redisPing();
+
   return NextResponse.json({
     ok: missing.length === 0,
     missing,
+    redis,
     optional: {
       GITHUB_TOKEN: Boolean(process.env.GITHUB_TOKEN),
       OPENAI_API_KEY: Boolean(process.env.OPENAI_API_KEY),
