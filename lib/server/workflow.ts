@@ -29,6 +29,80 @@ const DEDUPE_PREFIX = "dedup:";
 const dedupeCache = new Map<string, number>();
 const DEDUPE_WINDOW_MS = 60_000;
 
+const PEER_COUNT = 3; // Number of peers to assign
+
+/** P2: Allocate peer reviewers and notify them via Feishu Bot. */
+async function allocatePeers(
+  submitter: { student_id: string; name: string; cohort?: string },
+  submissionId: string,
+  challengeId: string,
+  projectTitle: string,
+  audit: AuditTrail,
+): Promise<void> {
+  try {
+    // Get students in the same cohort, excluding the submitter
+    const allStudents = await feishu.getStudents();
+    const cohort = submitter.cohort || "";
+    const candidates = allStudents.filter(
+      (s) => s.student_id !== submitter.student_id && s.status !== "inactive"
+    );
+
+    // Prefer same cohort, fall back to all candidates
+    const sameCohort = candidates.filter((s) => s.cohort === cohort);
+    const pool = sameCohort.length >= PEER_COUNT ? sameCohort : candidates;
+
+    // Randomly select up to PEER_COUNT peers
+    const selected = pool.sort(() => Math.random() - 0.5).slice(0, PEER_COUNT);
+
+    if (selected.length === 0) {
+      audit.log(SUBMISSION_TASK_AGENT, "peer_allocation_failed", submissionId, {
+        error_trace: "No eligible peers found",
+      });
+      return;
+    }
+
+    audit.log(SUBMISSION_TASK_AGENT, "peer_allocated", submissionId, {
+      after_state: {
+        peer_count: selected.length,
+        peers: selected.map((p) => p.student_id),
+      },
+    });
+
+    // Create peer evaluation records + notify each peer
+    for (const peer of selected) {
+      await feishu.createEvaluation({
+        submission_id: submissionId,
+        student_id: submitter.student_id,
+        challenge_id: challengeId,
+        evaluator_type: "peer",
+        evaluator_id: peer.student_id,
+        score_total: 0,
+        feedback: "",
+        created_at: new Date().toISOString(),
+      }).catch((err) => {
+        audit.log(SUBMISSION_TASK_AGENT, "peer_evaluation_create_failed", peer.student_id, {
+          error_trace: err instanceof Error ? err.message : String(err),
+        });
+      });
+
+      // Notify peer via Feishu Bot
+      notifyStudent(peer.student_id,
+        `👀 同学互评邀请\n\n${submitter.name} 提交了项目「${projectTitle}」，邀请你进行同伴评审。\n\n请在飞书多维表中查看提交详情并提交你的评分和反馈。`
+      ).then((result) => {
+        if (!result.ok) {
+          audit.log(SUBMISSION_TASK_AGENT, "peer_notify_failed", peer.student_id, {
+            error_trace: result.error,
+          });
+        }
+      });
+    }
+  } catch (err) {
+    audit.log(SUBMISSION_TASK_AGENT, "peer_allocation_error", submissionId, {
+      error_trace: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 function validateInput(input: SubmissionInput) {
   const required: Array<[keyof SubmissionInput, string]> = [
     ["studentId", "学生"],
@@ -161,7 +235,7 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
       });
       routingStatus = "routed_to_teacher";
     } else if (reviewMode === "peer_only") {
-      // TODO: peer allocation pending P2
+      // P2: Peer review — peers allocated after submission record creation
       const peerEnvelope = buildEnvelope({
         messageType: "peer_review_request",
         fromAgent: SUBMISSION_TASK_AGENT,
@@ -169,12 +243,15 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
         payload: { challenge_id: challenge.challenge_id, student_id: student.student_id, mode: "peer_only" },
         auditId: audit.traceId,
       });
-      audit.log(SUBMISSION_TASK_AGENT, "route_to_peer_review", peerEnvelope.message_id, {
-        error_trace: "TODO: peer 分配待 P2 实现",
-      });
+      audit.log(SUBMISSION_TASK_AGENT, "route_to_peer_review", peerEnvelope.message_id);
       routingStatus = "routed_to_peer";
     } else {
-      // teacher_and_peer
+      // teacher_and_peer: AI eval + peer
+      aiEvaluation = await ai.evaluateSubmission({ student, challenge, submission: input, githubCheck });
+      audit.log(REVIEW_TASK_AGENT, "generate_ai_evaluation", challenge.challenge_id, {
+        after_state: { scoreTotal: aiEvaluation.scoreTotal },
+      });
+
       const bothEnvelope = buildEnvelope({
         messageType: "peer_review_request",
         fromAgent: SUBMISSION_TASK_AGENT,
@@ -182,9 +259,7 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
         payload: { challenge_id: challenge.challenge_id, student_id: student.student_id, mode: "teacher_and_peer" },
         auditId: audit.traceId,
       });
-      audit.log(SUBMISSION_TASK_AGENT, "route_to_peer_review", bothEnvelope.message_id, {
-        error_trace: "TODO: peer 分配待 P2 实现",
-      });
+      audit.log(SUBMISSION_TASK_AGENT, "route_to_peer_review", bothEnvelope.message_id);
       routingStatus = "routed_to_both";
     }
 
@@ -220,6 +295,11 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
       audit,
     );
     audit.log(SUBMISSION_TASK_AGENT, "create_submission_record", String(submission.submission_id));
+
+    // P2: Peer allocation for peer_only and teacher_and_peer modes
+    if (reviewMode === "peer_only" || reviewMode === "teacher_and_peer") {
+      await allocatePeers(student, submission.submission_id, challenge.challenge_id, input.projectTitle, audit);
+    }
 
     // Only AI evaluation for teacher_only mode; peer modes skip AI eval (TODO P2)
     if (aiEvaluation) {
