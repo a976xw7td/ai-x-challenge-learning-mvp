@@ -12,18 +12,14 @@ import { makeId } from "@/lib/server/ids";
 
 export async function POST(request: Request) {
   try {
-    // T9: Require authenticated session
     const principal = await getPrincipal();
     if (!principal) {
-      return NextResponse.json(
-        { ok: false, error: "请先登录" },
-        { status: 401 },
-      );
+      return NextResponse.json({ ok: false, error: "请先登录" }, { status: 401 });
     }
 
     const input = (await request.json()) as SubmissionInput;
 
-    // T9: Row-level permission
+    // Row-level permission: student can only submit as themselves
     if (principal.role === "student" && input.studentId !== principal.person) {
       const audit = new AuditTrail();
       audit.log(SUBMISSION_TASK_AGENT, "identity_mismatch", input.studentId, {
@@ -37,27 +33,46 @@ export async function POST(request: Request) {
       );
     }
 
-    // T20: If Redis is available, publish async → return task_id immediately
+    // Determine fromAgent based on principal
+    const isAgentChannel = principal.role === "agent";
+    const fromAgent = isAgentChannel
+      ? principal.person // "student-companion-zhanghao-001" etc.
+      : "student-companion-webapp-fallback";
+
+    // AGENT_CN.md §8.2: Agent channels MUST go through Redis Stream (no sync fallback)
     const redis = getRedis();
+
+    if (isAgentChannel && !redis) {
+      return NextResponse.json(
+        { ok: false, error: "消息总线不可用，请稍后重试" },
+        { status: 503 },
+      );
+    }
+
+    // Publish to Stream if Redis is available
     if (redis) {
       const taskId = makeId("task");
-
-      // Create task record
       await createTask(taskId, "submission_request", input.studentId);
 
-      // Publish envelope to Redis Stream
       const auditTraceId = makeId("audit");
       const envelope = buildEnvelope({
         messageType: "submission_request",
-        fromAgent: "student-companion-webapp-fallback",
+        fromAgent,
         toAgent: SUBMISSION_TASK_AGENT,
         payload: input as unknown as Record<string, unknown>,
         auditId: auditTraceId,
       });
 
       const streamId = await publishEnvelope(envelope);
+
       if (!streamId) {
-        // Stream publish failed, fall back to sync
+        if (isAgentChannel) {
+          return NextResponse.json(
+            { ok: false, error: "消息发布失败，请稍后重试" },
+            { status: 503 },
+          );
+        }
+        // Webapp: Stream publish failed, fall back to sync
         console.warn("[submit] Stream publish failed, falling back to sync");
       } else {
         return NextResponse.json({
@@ -69,7 +84,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Sync fallback: call workflow directly (existing behavior, P1a)
+    // Sync fallback: webapp only (agent channels blocked above)
     const result = await submitChallengeProject(input);
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });
   } catch (error) {

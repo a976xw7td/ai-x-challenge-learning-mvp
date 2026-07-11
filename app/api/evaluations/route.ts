@@ -73,6 +73,15 @@ export async function POST(request: Request) {
     }
 
     // ---- Teacher review (existing P1a) ----
+    // AGENT_CN.md §8.2: Agent channels must go through Redis Stream
+    const isAgentChannel = principal.role === "agent";
+    if (isAgentChannel) {
+      return NextResponse.json(
+        { ok: false, error: "Agent 通道请通过消息总线提交评审" },
+        { status: 400 },
+      );
+    }
+
     if (principal.role !== "teacher") {
       return NextResponse.json(
         { ok: false, error: "仅教师可提交评审" },
