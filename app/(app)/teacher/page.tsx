@@ -32,6 +32,46 @@ export default function TeacherPage() {
   const [pubLoading, setPubLoading] = useState(false);
   const [pubResult, setPubResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  // T11: Teacher review state
+  const [reviewTarget, setReviewTarget] = useState<{ id: string; studentName: string; challengeTitle: string } | null>(null);
+  const [reviewScore, setReviewScore] = useState(80);
+  const [reviewFeedback, setReviewFeedback] = useState("");
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewResult, setReviewResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const handleReview = async (action: "accept" | "return") => {
+    if (!reviewTarget) return;
+    setReviewLoading(true);
+    setReviewResult(null);
+    try {
+      const res = await fetch("/api/evaluations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          submissionId: reviewTarget.id,
+          action,
+          score: reviewScore,
+          feedback: reviewFeedback || (action === "accept" ? "通过" : "需要修改"),
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setReviewResult({ ok: true, message: `${action === "accept" ? "确认通过" : "打回修改"}成功` });
+        setReviewTarget(null);
+        setReviewFeedback("");
+        // Refresh submissions list
+        fetchSubmissions().then((r) => {
+          if (r.ok && r.submissions) setRealSubmissions(r.submissions);
+        });
+      } else {
+        setReviewResult({ ok: false, message: data.error || "操作失败" });
+      }
+    } catch {
+      setReviewResult({ ok: false, message: "网络错误" });
+    }
+    setReviewLoading(false);
+  };
+
   // T10: Real submissions with mock fallback
   const [realSubmissions, setRealSubmissions] = useState<SubmissionListItem[] | null>(null);
   useEffect(() => {
@@ -285,9 +325,27 @@ export default function TeacherPage() {
                     }`}>{sub.status}</span>
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <Link href={`/submissions/${sub.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700">
-                      详情 <ChevronRight className="h-3 w-3" />
-                    </Link>
+                    <div className="flex items-center justify-end gap-2">
+                      {sub.status === "待评审" && (
+                        <>
+                          <button
+                            onClick={() => setReviewTarget({ id: sub.id, studentName: sub.studentName, challengeTitle: sub.challengeTitle })}
+                            className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-200"
+                          >
+                            确认
+                          </button>
+                          <button
+                            onClick={() => setReviewTarget({ id: sub.id, studentName: sub.studentName, challengeTitle: sub.challengeTitle })}
+                            className="rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-200"
+                          >
+                            打回
+                          </button>
+                        </>
+                      )}
+                      <Link href={`/submissions/${sub.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700">
+                        详情 <ChevronRight className="h-3 w-3" />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -325,6 +383,67 @@ export default function TeacherPage() {
           })}
         </div>
       </div>
+
+      {/* T11: Review modal */}
+      {reviewTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg">
+            <h3 className="text-base font-semibold text-gray-900">
+              评审: {reviewTarget.studentName} — {reviewTarget.challengeTitle}
+            </h3>
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-900">分数</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={reviewScore}
+                  onChange={(e) => setReviewScore(Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-900">评语</label>
+                <textarea
+                  value={reviewFeedback}
+                  onChange={(e) => setReviewFeedback(e.target.value)}
+                  rows={3}
+                  placeholder="对学生作品的评价..."
+                  className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm"
+                />
+              </div>
+              {reviewResult && (
+                <div className={`rounded-lg p-3 text-sm ${reviewResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                  {reviewResult.message}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleReview("accept")}
+                  disabled={reviewLoading}
+                  className="flex-1 rounded-lg bg-green-600 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  {reviewLoading ? "提交中..." : "确认通过"}
+                </button>
+                <button
+                  onClick={() => handleReview("return")}
+                  disabled={reviewLoading}
+                  className="flex-1 rounded-lg bg-red-600 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {reviewLoading ? "提交中..." : "打回修改"}
+                </button>
+              </div>
+              <button
+                onClick={() => { setReviewTarget(null); setReviewResult(null); }}
+                className="w-full rounded-lg border border-gray-200 py-2.5 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

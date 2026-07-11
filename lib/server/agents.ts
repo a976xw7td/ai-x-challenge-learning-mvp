@@ -65,6 +65,11 @@ export function isTrusted(fromAgent: string, toAgent: string): boolean {
   );
 }
 
+// ---- Extended message types (not in Team3 enum, v3.1 additions) ----
+export const EXTENDED_MESSAGE_TYPES = ["manual_review_adjustment", "peer_review_request"] as const;
+export type ExtendedMessageType = (typeof EXTENDED_MESSAGE_TYPES)[number];
+export type AllMessageTypes = MessageEnvelope["message_type"] | ExtendedMessageType;
+
 // ---- Message envelope (AGENT_CN.md §8: no identity-less messages) ----
 let seq = 0;
 function uid(prefix: string) {
@@ -73,13 +78,14 @@ function uid(prefix: string) {
 }
 
 export function buildEnvelope(params: {
-  messageType: MessageEnvelope["message_type"];
+  messageType: AllMessageTypes;
   fromAgent: string;
   toAgent: string;
   payload: Record<string, unknown>;
   auditId: string;
 }): MessageEnvelope {
-  return MessageEnvelopeSchema.parse({
+  // For extended types, use relaxed validation (skip strict MessageType enum check)
+  const raw = {
     message_id: uid("msg"),
     request_id: uid("req"),
     from_agent: params.fromAgent,
@@ -88,7 +94,17 @@ export function buildEnvelope(params: {
     timestamp: new Date().toISOString(),
     payload: params.payload,
     audit_trace_pointer: params.auditId,
-  });
+  };
+
+  // Relaxed parse: allow extended message types
+  try {
+    return MessageEnvelopeSchema.parse(raw);
+  } catch {
+    // Extended type: strip message_type for schema check, then restore
+    const { message_type, ...rest } = raw;
+    const base = MessageEnvelopeSchema.omit({ message_type: true }).parse(rest);
+    return { ...base, message_type } as MessageEnvelope;
+  }
 }
 
 // ---- Audit trail (AGENT_CN.md §8.2: no state change without audit trace) ----
