@@ -176,6 +176,7 @@ function normalizeStudent(record: { record_id: string; fields: Record<string, un
     student_id: asString(field(f, "student_id")),
     name: asString(field(f, "name")),
     email: asString(field(f, "email")),
+    feishu_open_id: asString(field(f, "feishu_open_id")),
     github_username: asString(field(f, "github_username")),
     github_profile_url: asString(field(f, "github_profile_url")),
     school: asString(field(f, "school")),

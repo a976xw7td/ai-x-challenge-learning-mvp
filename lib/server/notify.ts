@@ -85,13 +85,13 @@ export async function notifyStudent(
 ): Promise<{ ok: boolean; error?: string; skipped?: boolean }> {
   try {
     const student = await feishu.getStudentById(studentId);
-    // Try to read feishu_open_id — column may not exist yet
-    const openId = (student as unknown as Record<string, unknown>)["feishu_open_id"] as string | undefined;
-    if (!openId) {
+    if (!student.feishu_open_id) {
       console.warn(`[notify] Student ${studentId} has no feishu_open_id — notification skipped`);
       return { ok: false, skipped: true, error: "no feishu_open_id" };
     }
-    return await sendImMessage("open_id", openId, text);
+    const result = await sendImMessage("open_id", student.feishu_open_id, text);
+    console.log(`[notify] Sent to ${studentId} (open_id=${student.feishu_open_id.slice(0,8)}...): ok=${result.ok}`, result.error ? `error=${result.error}` : "");
+    return result;
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }

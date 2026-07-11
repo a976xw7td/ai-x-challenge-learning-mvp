@@ -251,6 +251,7 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
       notifyStudent(input.studentId,
         `✅ 提交成功！你的项目「${input.projectTitle}」已提交。\nAI 初评得分：${aiEvaluation.scoreTotal}/100\n评语：${aiEvaluation.feedback}`
       ).then((result) => {
+        console.log("[T16 debug] notifyStudent result:", JSON.stringify(result));
         if (!result.ok) {
           const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
           enqueue([entry]);
