@@ -90,8 +90,16 @@ RESP=$(curl -s -b "$COOKIE_JAR" -X POST "$BASE_URL/api/submit" \
   }")
 SUBMIT_OK=$(echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ok'))")
 SUB_ID=$(echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('submissionId',''))")
-if [ "$SUBMIT_OK" = "True" ] && [ -n "$SUB_ID" ]; then
-  pass "Submit success ($SUB_ID)"
+TASK_ID=$(echo "$RESP" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('task_id',''))")
+if [ "$SUBMIT_OK" = "True" ]; then
+  if [ -n "$SUB_ID" ]; then
+    pass "Submit success ($SUB_ID)"
+  elif [ -n "$TASK_ID" ]; then
+    pass "Submit async ($TASK_ID)"
+    SUB_ID="" # no submissionId yet, will skip review
+  else
+    fail "Submit" "ok=True with id" "$RESP"
+  fi
 else
   fail "Submit" "ok=True" "$RESP"
 fi
