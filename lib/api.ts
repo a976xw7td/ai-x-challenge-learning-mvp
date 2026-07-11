@@ -143,12 +143,73 @@ export async function login(payload: LoginPayload): Promise<{ ok: boolean; error
   }
 }
 
-export async function fetchCurrentUser(): Promise<{ ok: boolean; person?: string; role?: string; error?: string }> {
+export async function fetchCurrentUser(): Promise<{ ok: boolean; person?: string; role?: string; name?: string; error?: string }> {
   try {
     const res = await fetch("/api/auth/me");
-    return await res.json();
+    const data = await res.json();
+    if (data.ok) return data;
+    return { ok: false, error: data.error || "未登录" };
   } catch {
     return { ok: false, error: "网络错误" };
+  }
+}
+
+// ---- Students (for dashboard stats) ----
+
+export type StudentInfo = {
+  student_id: string;
+  name: string;
+  email?: string;
+  cohort?: string;
+  status?: string;
+};
+
+export async function fetchStudents(): Promise<{ ok: boolean; students?: StudentInfo[]; error?: string }> {
+  try {
+    const res = await fetch("/api/students");
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "加载失败" };
+  }
+}
+
+// ---- Dashboard stats (combined) ----
+
+export type DashboardStats = {
+  studentCount: number;
+  challengeCount: number;
+  submissionCount: number;
+  pendingReview: number;
+  completedCount: number;
+  live: boolean;
+};
+
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  try {
+    const [studentsRes, challengesRes, submissionsRes] = await Promise.all([
+      fetch("/api/students"),
+      fetch("/api/challenges"),
+      fetch("/api/submissions"),
+    ]);
+    const students = await studentsRes.json();
+    const challenges = await challengesRes.json();
+    const submissions = await submissionsRes.json();
+
+    const subs = submissions.ok ? (submissions.submissions || []) : [];
+    return {
+      studentCount: students.ok ? (students.students || []).length : 0,
+      challengeCount: challenges.ok ? (challenges.challenges || []).length : 0,
+      submissionCount: subs.length,
+      pendingReview: subs.filter((s: SubmissionListItem) =>
+        s.task_state === "pending_teacher_review" || s.status === "checked"
+      ).length,
+      completedCount: subs.filter((s: SubmissionListItem) =>
+        s.task_state === "COMPLETED" || s.status === "accepted"
+      ).length,
+      live: students.ok || challenges.ok || submissions.ok,
+    };
+  } catch {
+    return { studentCount: 0, challengeCount: 0, submissionCount: 0, pendingReview: 0, completedCount: 0, live: false };
   }
 }
 

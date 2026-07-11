@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   User,
@@ -11,25 +11,58 @@ import {
   Clock,
   Award,
   TrendingUp,
-  Edit3,
   ExternalLink,
-  ChevronRight,
+  Loader2,
 } from "lucide-react";
-import { students, submissions, getPortfolioByStudent } from "@/lib/data";
+import {
+  fetchCurrentUser,
+  fetchSubmissions,
+  fetchPortfolio,
+  type SubmissionListItem,
+} from "@/lib/api";
+import type { PortfolioItem } from "@/lib/data";
 
 export default function ProfilePage() {
-  // 用 s01 作为当前登录学生示例
-  const student = students[0];
-  const studentSubmissions = submissions.filter((s) => s.studentId === student.id);
-  const studentPortfolio = getPortfolioByStudent(student.id);
-  const [editing, setEditing] = useState(false);
-  const [githubHandle, setGithubHandle] = useState(student.github);
+  const [user, setUser] = useState<{ person: string; role: string; name?: string } | null>(null);
+  const [submissions, setSubmissions] = useState<SubmissionListItem[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const avgAiScore = studentSubmissions.length > 0
-    ? Math.round(studentSubmissions.reduce((a, s) => a + s.aiReview.score, 0) / studentSubmissions.length)
+  useEffect(() => {
+    Promise.all([
+      fetchCurrentUser(),
+      fetchSubmissions(),
+      fetchPortfolio(),
+    ]).then(([userRes, subsRes, portRes]) => {
+      if (userRes.ok && userRes.person) {
+        setUser({ person: userRes.person, role: userRes.role || "student", name: userRes.name });
+      }
+      if (subsRes.ok && subsRes.submissions) {
+        const mine = userRes.person
+          ? subsRes.submissions.filter((s) => s.student_id === userRes.person)
+          : subsRes.submissions;
+        setSubmissions(mine);
+      }
+      if (portRes.live) setPortfolio(portRes.items);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+        <p className="mt-3 text-sm text-gray-500">加载中...</p>
+      </div>
+    );
+  }
+
+  const completedCount = submissions.filter(
+    (s) => s.status === "accepted" || s.task_state === "COMPLETED"
+  ).length;
+  const avgScore = submissions.length > 0
+    ? Math.round(submissions.reduce((a, s) => a + (s.score_total || 0), 0) / submissions.length)
     : 0;
-
-  const reviewedCount = studentSubmissions.filter((s) => s.status === "已评分").length;
 
   return (
     <div className="space-y-6">
@@ -37,156 +70,105 @@ export default function ProfilePage() {
       <div className="rounded-xl border border-gray-200 bg-white p-6">
         <div className="flex items-start gap-6">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-2xl font-bold text-primary-700">
-            {student.name.charAt(0)}
+            {(user?.name || "?").charAt(0)}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-gray-900">{student.name}</h1>
+              <h1 className="text-xl font-bold text-gray-900">
+                {user?.name || "未登录"}
+              </h1>
               <span className="inline-flex items-center rounded-full bg-primary-50 px-2.5 py-0.5 text-xs font-medium text-primary-700">
-                {student.studentClass}
+                {user?.role === "teacher" ? "教师" : "学生"}
               </span>
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-gray-500">
+            <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-500">
               <span className="flex items-center gap-1.5">
-                <Github className="h-4 w-4" />
-                {editing ? (
-                  <input type="text" value={githubHandle} onChange={(e) => setGithubHandle(e.target.value)}
-                    className="w-40 rounded border border-gray-200 px-2 py-0.5 text-sm focus:border-primary-500 focus:outline-none" />
-                ) : (
-                  <span>{githubHandle}</span>
-                )}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Mail className="h-4 w-4" /> {student.email}
+                <User className="h-3.5 w-3.5" />
+                {user?.person || "—"}
               </span>
             </div>
           </div>
-          <button onClick={() => setEditing(!editing)}
-            className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50">
-            <Edit3 className="h-3 w-3" /> {editing ? "保存" : "编辑"}
-          </button>
         </div>
       </div>
 
       {/* 统计 */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="stat-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">已挑战</p>
-              <p className="text-2xl font-bold text-gray-900">{student.completedChallenges}/{student.totalChallenges}</p>
-            </div>
-            <div className="rounded-lg bg-primary-50 p-2"><BookOpen className="h-5 w-5 text-primary-600" /></div>
-          </div>
-          <div className="mt-2 h-1.5 rounded-full bg-gray-100">
-            <div className="h-1.5 rounded-full bg-primary-500" style={{ width: `${Math.round((student.completedChallenges / student.totalChallenges) * 100)}%` }} />
-          </div>
+          <p className="text-sm text-gray-500">提交数</p>
+          <p className="text-2xl font-bold text-gray-900">{submissions.length}</p>
         </div>
         <div className="stat-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">已提交</p>
-              <p className="text-2xl font-bold text-gray-900">{studentSubmissions.length}</p>
-            </div>
-            <div className="rounded-lg bg-blue-50 p-2"><Clock className="h-5 w-5 text-blue-600" /></div>
-          </div>
-          <p className="mt-2 text-xs text-gray-400">{reviewedCount} 个已评分</p>
+          <p className="text-sm text-gray-500">已完成</p>
+          <p className="text-2xl font-bold text-gray-900">{completedCount}</p>
         </div>
         <div className="stat-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">平均 AI 评分</p>
-              <p className="text-2xl font-bold text-gray-900">{avgAiScore}</p>
-            </div>
-            <div className="rounded-lg bg-amber-50 p-2"><TrendingUp className="h-5 w-5 text-amber-600" /></div>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">作品集</p>
-              <p className="text-2xl font-bold text-gray-900">{studentPortfolio.length}</p>
-            </div>
-            <div className="rounded-lg bg-green-50 p-2"><Award className="h-5 w-5 text-green-600" /></div>
-          </div>
-          <p className="mt-2 text-xs text-gray-400">
-            {studentPortfolio.filter((p) => p.isPublic).length} 个公开
-          </p>
+          <p className="text-sm text-gray-500">平均分</p>
+          <p className="text-2xl font-bold text-gray-900">{avgScore}</p>
         </div>
       </div>
 
-      {/* 技能标签 */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-gray-900">技能标签</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {student.skills.map((skill) => (
-            <span key={skill} className="inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
-              {skill}
-            </span>
-          ))}
-          <button className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-3 py-1 text-xs text-gray-400 hover:border-gray-400 hover:text-gray-600">
-            + 添加
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* 提交历史 */}
-        <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-900">提交历史</h2>
-            <Link href="/portfolio" className="text-xs font-medium text-primary-600 hover:text-primary-700">查看全部</Link>
+      {/* 提交记录 */}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">提交记录</h2>
+        {submissions.length === 0 ? (
+          <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-500">
+            暂无提交，<Link href="/submit" className="text-primary-600 hover:underline">去提交</Link>
           </div>
-          <div className="divide-y divide-gray-100">
-            {studentSubmissions.slice(0, 5).map((sub) => (
-              <Link key={sub.id} href={`/submissions/${sub.id}`} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors">
-                <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                  sub.status === "已评分" ? "bg-green-100 text-green-700" :
-                  sub.status === "待评审" ? "bg-purple-100 text-purple-700" :
-                  "bg-gray-100 text-gray-500"
-                }`}>
-                  {sub.status === "已评分" ? <CheckCircle2 className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+        ) : (
+          <div className="mt-3 space-y-2">
+            {submissions.slice(0, 10).map((s) => (
+              <Link
+                key={s.submission_id}
+                href={`/submissions/${s.submission_id}`}
+                className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 hover:shadow-sm transition-all"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{s.project_title}</p>
+                  <p className="text-xs text-gray-500">{s.submitted_at || "—"}</p>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-900">{sub.challengeTitle}</p>
-                  <p className="text-xs text-gray-500">{sub.submittedAt} · {sub.githubRepo}</p>
-                </div>
-                <div className="text-right">
+                <div className="flex items-center gap-3">
+                  {s.score_total != null && (
+                    <span className="text-sm font-medium text-gray-700">{s.score_total}分</span>
+                  )}
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                    sub.status === "已评分" ? "bg-green-50 text-green-700" :
-                    sub.status === "待评审" ? "bg-purple-50 text-purple-700" :
-                    sub.status === "检查失败" ? "bg-red-50 text-red-700" :
-                    "bg-blue-50 text-blue-700"
-                  }`}>{sub.status}</span>
+                    s.status === "accepted" || s.task_state === "COMPLETED"
+                      ? "bg-green-50 text-green-700"
+                      : s.status === "needs_revision"
+                      ? "bg-red-50 text-red-700"
+                      : "bg-gray-100 text-gray-600"
+                  }`}>
+                    {s.task_state || s.status || "处理中"}
+                  </span>
                 </div>
               </Link>
             ))}
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* 作品集 */}
-        <div className="rounded-xl border border-gray-200 bg-white">
-          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-            <h2 className="text-sm font-semibold text-gray-900">我的作品</h2>
-            <Link href="/portfolio" className="text-xs font-medium text-primary-600 hover:text-primary-700">查看全部</Link>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {studentPortfolio.map((item) => (
-              <div key={item.id} className="px-5 py-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{item.challengeTitle}</p>
-                    <p className="mt-0.5 text-xs text-gray-500">{item.summary.slice(0, 60)}...</p>
-                  </div>
-                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                    item.isPublic ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"
-                  }`}>{item.isPublic ? "公开" : "内部"}</span>
-                </div>
+      {/* 作品集 */}
+      {portfolio.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">作品集</h2>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {portfolio.slice(0, 4).map((p) => (
+              <div key={p.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                <h3 className="font-medium text-gray-900">{p.challengeTitle}</h3>
+                <p className="mt-1 text-xs text-gray-500 line-clamp-2">{p.summary}</p>
+                {p.githubRepo && (
+                  <a href={`https://github.com/${p.githubRepo}`} target="_blank" rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-primary-600 hover:underline">
+                    <ExternalLink className="h-3 w-3" /> 仓库
+                  </a>
+                )}
               </div>
             ))}
           </div>
+          <Link href="/portfolio" className="mt-2 inline-block text-sm text-primary-600 hover:underline">
+            查看全部 →
+          </Link>
         </div>
-      </div>
+      )}
     </div>
   );
 }

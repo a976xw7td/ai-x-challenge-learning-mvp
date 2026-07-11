@@ -105,6 +105,43 @@ export default function SubmissionDetailPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {/* Task 状态时间线 */}
+          <div className="rounded-xl border border-gray-200 bg-white p-6">
+            <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+              <Clock className="h-5 w-5 text-primary-600" /> 任务进度
+            </h2>
+            <div className="mt-4 space-y-0">
+              {[
+                { key: "submitted", label: "已提交", done: true },
+                { key: "validating", label: "校验中", done: !!realSub.status && realSub.status !== "submitted" },
+                { key: "ai_reviewing", label: "AI 初评", done: (realSub.score_total || 0) > 0 },
+                { key: "teacher_reviewing", label: "教师评审", done: realSub.status === "accepted" || realSub.task_state === "COMPLETED" || realSub.status === "reviewed" },
+                { key: "completed", label: "完成", done: realSub.status === "accepted" || realSub.task_state === "COMPLETED" },
+              ].map((step, i, arr) => (
+                <div key={step.key} className="flex items-start gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${
+                      step.done ? "bg-green-500 text-white" : "bg-gray-200 text-gray-500"
+                    }`}>
+                      {step.done ? "✓" : i + 1}
+                    </div>
+                    {i < arr.length - 1 && (
+                      <div className={`mt-0.5 h-6 w-0.5 ${step.done ? "bg-green-300" : "bg-gray-200"}`} />
+                    )}
+                  </div>
+                  <div className="pb-4">
+                    <p className={`text-sm font-medium ${step.done ? "text-gray-900" : "text-gray-400"}`}>
+                      {step.label}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 text-xs text-gray-400">
+              提交时间：{realSub.submitted_at || "—"}
+            </div>
+          </div>
+
           <div className="rounded-xl border border-gray-200 bg-white p-6">
             <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
               <TrendingUp className="h-5 w-5 text-primary-600" /> AI 初评
