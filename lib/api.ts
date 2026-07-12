@@ -35,7 +35,8 @@ export async function fetchChallenges(): Promise<{ items: Challenge[]; live: boo
   try {
     const res = await fetch("/api/challenges");
     const data = await res.json();
-    if (!data.ok || !Array.isArray(data.challenges) || data.challenges.length === 0) throw new Error();
+    // BUGFIX: empty list is valid (no published challenges yet), don't fall back to mock
+    if (!data.ok || !Array.isArray(data.challenges)) throw new Error();
     const items: Challenge[] = (data.challenges as BackendChallenge[]).map((c, i) => ({
       id: c.challenge_id,
       number: `Challenge ${String(i + 1).padStart(2, "0")}`,

@@ -110,13 +110,15 @@ export async function initMessageBus(): Promise<void> {
   const abortController = new AbortController();
 
   // P3 T1: Subscribe via bus adapter (transport-agnostic)
-  busAdapter.subscribe("submission-task-agent", "submission-consumer-1", async (env, id) => {
+  // BUGFIX: await consumer startup promises so failures are visible at boot,
+  // not silently lost in background.
+  const subConsumer = busAdapter.subscribe("submission-task-agent", "submission-consumer-1", async (env, id) => {
     await handleMessage(env);
   }, abortController.signal).catch((err) => {
     console.error("[bus] Submission consumer crashed:", err);
   });
 
-  busAdapter.subscribe("review-task-agent", "review-consumer-1", async (env, id) => {
+  const reviewConsumer = busAdapter.subscribe("review-task-agent", "review-consumer-1", async (env, id) => {
     await handleMessage(env);
   }, abortController.signal).catch((err) => {
     console.error("[bus] Review consumer crashed:", err);
@@ -129,4 +131,7 @@ export async function initMessageBus(): Promise<void> {
   };
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
+
+  // Await both consumer startups so boot is blocked until consumers are live
+  await Promise.all([subConsumer, reviewConsumer]);
 }

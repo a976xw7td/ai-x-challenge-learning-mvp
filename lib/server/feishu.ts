@@ -10,6 +10,8 @@ type FeishuListResponse = {
       record_id: string;
       fields: Record<string, unknown>;
     }>;
+    has_more?: boolean;
+    page_token?: string;
   };
 };
 
@@ -174,8 +176,9 @@ async function feishuRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
-function listPath(tableId: string) {
-  return `/bitable/v1/apps/${appToken()}/tables/${tableId}/records?page_size=500`;
+function listPath(tableId: string, pageToken?: string) {
+  const base = `/bitable/v1/apps/${appToken()}/tables/${tableId}/records?page_size=500`;
+  return pageToken ? `${base}&page_token=${pageToken}` : base;
 }
 
 function createPath(tableId: string) {
@@ -276,8 +279,18 @@ function normalizePortfolio(record: { record_id: string; fields: Record<string, 
 }
 
 async function listRecords(tableId: string) {
-  const payload = await feishuRequest<FeishuListResponse>(listPath(tableId));
-  return payload.data?.items || [];
+  // BUGFIX: paginate through all records, not just the first 500
+  const allItems: Array<{ record_id: string; fields: Record<string, unknown> }> = [];
+  let pageToken: string | undefined;
+
+  do {
+    const payload = await feishuRequest<FeishuListResponse>(listPath(tableId, pageToken));
+    const items = payload.data?.items || [];
+    allItems.push(...items);
+    pageToken = payload.data?.has_more ? payload.data?.page_token : undefined;
+  } while (pageToken);
+
+  return allItems;
 }
 
 async function createRecord(tableId: string, fields: Record<string, unknown>) {

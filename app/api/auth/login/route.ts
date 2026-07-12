@@ -23,10 +23,19 @@ export async function POST(request: Request) {
     let student;
     try {
       student = await getStudentById(studentId);
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // BUGFIX: distinguish "not found" from Feishu/network errors
+      if (msg.includes("not found") || msg.includes("Student not found")) {
+        return NextResponse.json(
+          { ok: false, error: "学生ID不存在或未导入系统" },
+          { status: 401 },
+        );
+      }
+      console.error("[login] Feishu lookup error:", msg);
       return NextResponse.json(
-        { ok: false, error: "学生ID不存在或未导入系统" },
-        { status: 401 },
+        { ok: false, error: "系统暂时无法验证身份，请稍后重试" },
+        { status: 503 },
       );
     }
 

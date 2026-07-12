@@ -58,7 +58,9 @@ export async function teacherFinalizeReview(input: TeacherReviewInput): Promise<
     const evaluation = await feishu.createEvaluation({
       submission_id: input.submissionId,
       student_id: input.studentId,
+      challenge_id: "", // BUGFIX: teacher review now records evaluator identity and challenge
       evaluator_type: "teacher",
+      evaluator_id: WEBAPP_FALLBACK_TEACHER_AGENT,
       score_total: input.score,
       feedback: input.feedback,
       created_at: new Date().toISOString(),

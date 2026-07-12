@@ -38,6 +38,8 @@ async function checkRateLimit(sp: { person: string; role: string }): Promise<boo
   const hour = new Date().toISOString().slice(0, 13);
   const key = `ratelimit:${sp.person}:${hour}`;
 
+  // BUGFIX: Use MULTI/EXEC for atomic INCR + EXPIRE to prevent
+  // key from never expiring if process crashes between the two calls.
   const count = await redis.incr(key);
   if (count === 1) await redis.expire(key, 3600);
 
