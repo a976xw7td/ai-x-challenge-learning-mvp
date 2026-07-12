@@ -3,6 +3,9 @@
 import { registerHandler, handleMessage } from "./message-handler";
 import { startConsumer } from "./redis-stream";
 import { updateTaskStatus } from "./tasks";
+import { bootstrapRegistry, lookupAgent } from "./agent-registry";
+import { setRegistryLookup } from "./service-principal";
+import type { ServicePrincipal } from "../schemas/envelope-v2.schema";
 import type { MessageEnvelope } from "../schemas/zod-from-schemas";
 import type { SubmissionInput } from "./types";
 
@@ -93,6 +96,14 @@ export async function initMessageBus(): Promise<void> {
   registerHandler("manual_review_adjustment", handleManualReviewAdjustment);
 
   console.log("[bus] Message bus initialized with 4 handlers");
+
+  // P3 T2: Bootstrap agent registry + wire dynamic lookup
+  await bootstrapRegistry();
+  setRegistryLookup(async (agentId) => {
+    const reg = await lookupAgent(agentId);
+    if (!reg) return null;
+    return { person: reg.person, org: reg.org, role: reg.role as ServicePrincipal["role"] };
+  });
 
   // Start consumers in background
   const abortController = new AbortController();

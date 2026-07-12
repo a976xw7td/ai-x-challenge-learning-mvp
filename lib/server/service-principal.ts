@@ -9,6 +9,13 @@ import {
   type Relationship,
 } from "../schemas/envelope-v2.schema";
 
+// P3 T2: Agent registry — dynamic lookup before hardcoded fallback
+let _registryLookup: ((agentId: string) => Promise<ServicePrincipal | null>) | null = null;
+
+export function setRegistryLookup(fn: (agentId: string) => Promise<ServicePrincipal | null>): void {
+  _registryLookup = fn;
+}
+
 // ---- Agent → SP mapping (§3.1, §3.6) ----
 
 const AGENT_TO_SP: Record<string, ServicePrincipal> = {
@@ -57,6 +64,17 @@ const AGENT_TO_SP: Record<string, ServicePrincipal> = {
 
 export function agentToSP(agentId: string): ServicePrincipal | null {
   return AGENT_TO_SP[agentId] || null;
+}
+
+/** P3 T2: Look up agent from registry first, fall back to hardcoded map. */
+export async function resolveAgentSP(agentId: string): Promise<ServicePrincipal | null> {
+  // 1. Try registry (dynamic)
+  if (_registryLookup) {
+    const sp = await _registryLookup(agentId);
+    if (sp) return sp;
+  }
+  // 2. Fall back to hardcoded map
+  return agentToSP(agentId);
 }
 
 // ---- Relationship graph (§3.2) ----
