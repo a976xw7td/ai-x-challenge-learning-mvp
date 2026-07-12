@@ -78,7 +78,15 @@ export async function getAgentPrincipal(): Promise<ServicePrincipal | null> {
 
     // Try Students table keys (auto-generated for each student)
     const studentSp = await resolveStudentApiKey(apiKey.trim());
-    if (studentSp) return { person: studentSp.person, org: studentSp.org, role: studentSp.role };
+    if (studentSp) {
+      // Auto-register dynamic student agent in registry if not already known
+      const { lookupAgent, registerAgent } = await import("./agent-registry");
+      const existing = await lookupAgent(studentSp.person);
+      if (!existing) {
+        await registerAgent(studentSp.person, studentSp, ["submission_request"]);
+      }
+      return { person: studentSp.person, org: studentSp.org, role: studentSp.role };
+    }
   } catch {
     // headers() throws outside of request context
   }

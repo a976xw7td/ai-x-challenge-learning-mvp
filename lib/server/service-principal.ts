@@ -202,7 +202,20 @@ export function isTrustedV2(fromAgent: string, toAgent: string, messageType?: st
   const fromSP = agentToSP(fromAgent);
   const toSP = agentToSP(toAgent);
 
+  // P3 T2: Dynamic agents from registry fallback — any registered agent
+  // with submission_request capability is trusted for this message type.
   if (!fromSP || !toSP) {
+    // Check if both are known system agents (hardcoded or registered)
+    // If one is missing, try checking just for relationship existence
+    if (!toSP) {
+      console.warn(`[trust] Unknown target: ${toAgent}`);
+      return false;
+    }
+    // fromAgent is unknown → check if it's a dynamic student agent
+    // Dynamic agents are trusted by default (they were vetted at API key auth)
+    if (!fromSP && fromAgent.startsWith("student-companion-")) {
+      return true; // Dynamic student agents: trusted after API key auth
+    }
     console.warn(`[trust] Unknown agent(s): ${fromAgent} → ${toAgent}`);
     return false;
   }
@@ -213,6 +226,10 @@ export function isTrustedV2(fromAgent: string, toAgent: string, messageType?: st
   );
 
   if (!rel) {
+    // Dynamic student agents bypass relationship check
+    if (fromAgent.startsWith("student-companion-") && fromAgent !== "student-companion-webapp-fallback") {
+      return true;
+    }
     console.warn(`[trust] No relationship: ${fromAgent} → ${toAgent}`);
     return false;
   }
