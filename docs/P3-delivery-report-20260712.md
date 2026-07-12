@@ -130,3 +130,19 @@ $ curl -s http://localhost:3000/api/health
 - Presence（Agent 在线状态实时推送）
 - Hermes/OpenClaw 真总线替换（ADAPTER 桩已就绪，需实际 SDK）
 - 多班级 API 过滤（class_id 已入 Session，具体过滤逻辑待业务场景明确后补）
+
+---
+
+## 7. 评审补记（2026-07-12 复核）
+
+逐条核对代码后确认：3 个 commit、6 个新文件、总线抽象/注册中心/通道适配器/多角色限流/class_id 均真实落地。但复核发现 3 个安全漏洞，已在 `1c73762` 修复：
+
+| # | 漏洞 | 修复 |
+|---|------|------|
+| 1 | `GET /api/agents` 无鉴权（报告声称"管理员查看"与实现不符） | 仅 admin/teacher/system 可查 |
+| 2 | `POST /api/agents/register` 任意登录用户可覆盖系统 Agent 注册（registry 优先于写死表 → 信任校验 DoS） | 保留 ID 仅 admin/system 可注册；覆盖他人注册需特权 |
+| 3 | `DELETE /api/agents/:id` 完全无鉴权 | 仅本 Agent 自身或 admin/system；保留 ID 仅 admin/system |
+
+已知瑕疵（不阻塞）：`agentHeartbeat()` 无调用方，系统 Agent 注册 1h TTL 过期后由写死表兜底，注册中心列表会变空——P4 随 Presence 一并解决。
+
+线上验证（重建容器后）：`/api/health` ok；`/api/agents` 未认证 401 ✅；`/api/hermes` 无 Key 401 ✅。
