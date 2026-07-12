@@ -190,9 +190,16 @@ export function getBusAdapter(): BusAdapter {
   return _adapter;
 }
 
-// Convenience: lazy singleton that always routes to the current adapter
-export const busAdapter = {
-  get publish() { return getBusAdapter().publish.bind(getBusAdapter()); },
-  get subscribe() { return getBusAdapter().subscribe.bind(getBusAdapter()); },
-  get isAvailable() { return getBusAdapter().isAvailable.bind(getBusAdapter()); },
+// Convenience: lazy singleton — cache the adapter
+let _cachedAdapter: BusAdapter | null = null;
+
+function getAdapter(): BusAdapter {
+  if (!_cachedAdapter) _cachedAdapter = getBusAdapter();
+  return _cachedAdapter;
+}
+
+export const busAdapter: BusAdapter = {
+  publish: (envelope) => getAdapter().publish(envelope),
+  subscribe: (group, consumer, handler, signal) => getAdapter().subscribe(group, consumer, handler, signal),
+  isAvailable: () => getAdapter().isAvailable(),
 };
