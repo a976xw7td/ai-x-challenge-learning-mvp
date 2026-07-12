@@ -120,6 +120,7 @@ const FEISHU_FIELD_NAMES: Record<string, string> = {
   skills: "技能",
   ai_feedback_summary: "AI反馈摘要",
   api_key: "API Key",
+  class_id: "班级ID",
 };
 
 function appToken() {
@@ -212,6 +213,7 @@ function normalizeStudent(record: { record_id: string; fields: Record<string, un
     email: asString(field(f, "email")),
     feishu_open_id: asString(field(f, "feishu_open_id")),
     api_key: asString(field(f, "api_key")),
+    class_id: asString(field(f, "class_id")),
     github_username: asString(field(f, "github_username")),
     github_profile_url: asString(field(f, "github_profile_url")),
     school: asString(field(f, "school")),

@@ -62,7 +62,8 @@ export async function POST(request: Request) {
       person: studentId,
       role,
       name: student.name,
-      api_key: apiKey || undefined,  // show key to student
+      class_id: student.class_id || "",
+      api_key: apiKey || undefined,
     });
 
     response.cookies.set(SESSION_COOKIE, token, {

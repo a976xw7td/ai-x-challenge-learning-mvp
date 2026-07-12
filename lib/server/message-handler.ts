@@ -21,10 +21,13 @@ export function registerHandler(messageType: string, handler: HandlerFn): void {
 // ---- P2: Rate limiting (§3.2) ----
 
 const ROLE_RATE_LIMITS: Record<string, number> = {
-  admin: 1000,
+  admin: 2000,
   teacher: 1000,
+  ta: 800,
   system: 1000,
   agent: 500,
+  judge: 300,
+  observer: 200,
   student: 100,
 };
 
