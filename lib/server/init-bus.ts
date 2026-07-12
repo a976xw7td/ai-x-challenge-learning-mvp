@@ -136,23 +136,22 @@ export async function initMessageBus(): Promise<void> {
   // Start consumers in background
   const abortController = new AbortController();
 
-  // P3 T1: Subscribe via bus adapter (transport-agnostic)
-  // BUGFIX: await consumer startup promises so failures are visible at boot,
-  // not silently lost in background.
+  // P3 T1: Subscribe via bus adapter (transport-agnostic).
+  // Consumers run in background (never resolve — infinite while loop).
+  // Errors are handled by .catch(); do NOT await these promises.
   //
   // AGENT_CN.md §8.1: Each consumer stamps forward hop before handler,
   // deliver hop after success. This gives full route traceability.
-  const subConsumer = busAdapter.subscribe("submission-task-agent", "submission-consumer-1", async (env, id) => {
+  busAdapter.subscribe("submission-task-agent", "submission-consumer-1", async (env, id) => {
     const forwarded = appendRouteHop(env, "forward");
     await handleMessage(forwarded);
-    // On success, stamp deliver hop + persist full route trace
     const delivered = appendRouteHop(forwarded, "deliver");
     persistRouteTrace(delivered);
   }, abortController.signal).catch((err) => {
     console.error("[bus] Submission consumer crashed:", err);
   });
 
-  const reviewConsumer = busAdapter.subscribe("review-task-agent", "review-consumer-1", async (env, id) => {
+  busAdapter.subscribe("review-task-agent", "review-consumer-1", async (env, id) => {
     const forwarded = appendRouteHop(env, "forward");
     await handleMessage(forwarded);
     const delivered = appendRouteHop(forwarded, "deliver");
@@ -168,7 +167,4 @@ export async function initMessageBus(): Promise<void> {
   };
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
-
-  // Await both consumer startups so boot is blocked until consumers are live
-  await Promise.all([subConsumer, reviewConsumer]);
 }
