@@ -31,6 +31,8 @@ export function getRedis(): Redis | null {
   try {
     _redis = new Redis(url, {
       maxRetriesPerRequest: 3,
+      enableOfflineQueue: false,  // fail fast on disconnect, don't queue commands
+      connectTimeout: 3_000,       // 3s cap on connection attempts
       retryStrategy(times) {
         if (times > 3) {
           _redisUnavailable = true;

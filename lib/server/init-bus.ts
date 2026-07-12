@@ -136,29 +136,40 @@ export async function initMessageBus(): Promise<void> {
   // Start consumers in background
   const abortController = new AbortController();
 
-  // P3 T1: Subscribe via bus adapter (transport-agnostic).
-  // Consumers run in background (never resolve — infinite while loop).
-  // Errors are handled by .catch(); do NOT await these promises.
-  //
-  // AGENT_CN.md §8.1: Each consumer stamps forward hop before handler,
-  // deliver hop after success. This gives full route traceability.
-  busAdapter.subscribe("submission-task-agent", "submission-consumer-1", async (env, id) => {
-    const forwarded = appendRouteHop(env, "forward");
-    await handleMessage(forwarded);
-    const delivered = appendRouteHop(forwarded, "deliver");
-    persistRouteTrace(delivered);
-  }, abortController.signal).catch((err) => {
-    console.error("[bus] Submission consumer crashed:", err);
-  });
+  // Resilient consumer with auto-restart on crash (exponential backoff, 20 retries max).
+  // Graceful shutdown (SIGTERM/SIGINT) sets signal.aborted and stops restarts.
+  function startResilientConsumer(
+    group: string,
+    consumer: string,
+  ): void {
+    let restarts = 0;
+    const MAX_RESTARTS = 20;
 
-  busAdapter.subscribe("review-task-agent", "review-consumer-1", async (env, id) => {
-    const forwarded = appendRouteHop(env, "forward");
-    await handleMessage(forwarded);
-    const delivered = appendRouteHop(forwarded, "deliver");
-    persistRouteTrace(delivered);
-  }, abortController.signal).catch((err) => {
-    console.error("[bus] Review consumer crashed:", err);
-  });
+    const run = () => {
+      busAdapter.subscribe(group, consumer, async (env) => {
+        const forwarded = appendRouteHop(env, "forward");
+        await handleMessage(forwarded);
+        const delivered = appendRouteHop(forwarded, "deliver");
+        persistRouteTrace(delivered);
+      }, abortController.signal).catch((err) => {
+        if (abortController.signal.aborted) return; // normal shutdown, don't restart
+        restarts++;
+        console.error(
+          `[bus] Consumer ${group}/${consumer} crashed (restart ${restarts}/${MAX_RESTARTS}):`,
+          err instanceof Error ? err.message : String(err),
+        );
+        if (restarts >= MAX_RESTARTS) {
+          console.error(`[bus] Consumer ${group}/${consumer} gave up after ${MAX_RESTARTS} restarts`);
+          return;
+        }
+        setTimeout(run, Math.min(5_000 * restarts, 60_000)); // 5s→10s→...→60s cap
+      });
+    };
+    run();
+  }
+
+  startResilientConsumer("submission-task-agent", "submission-consumer-1");
+  startResilientConsumer("review-task-agent", "review-consumer-1");
 
   // Graceful shutdown
   const shutdown = () => {
