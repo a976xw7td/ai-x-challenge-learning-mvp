@@ -135,6 +135,32 @@ export default function ProfilePage() {
                   agent_id: `student-companion-${user.person}`,
                   api_key: user.api_key,
                   server: window.location.origin,
+                  auth: {
+                    method: "header",
+                    header_name: "x-api-key"
+                  },
+                  endpoints: {
+                    submit: { method: "POST", path: "/api/hermes", description: "提交作业" },
+                    health: { method: "GET", path: "/api/health", description: "健康检查" },
+                    agents: { method: "GET", path: "/api/agents", description: "Agent 列表" }
+                  },
+                  message_types: {
+                    submission_request: {
+                      description: "提交作业",
+                      payload: {
+                        studentId: { type: "string", required: true, description: "学号" },
+                        challengeId: { type: "string", required: true, description: "Challenge ID" },
+                        projectTitle: { type: "string", required: true, description: "项目标题" },
+                        projectSummary: { type: "string", required: true, description: "项目简介" },
+                        githubRepoUrl: { type: "string", required: true, description: "GitHub 仓库地址" },
+                        aarText: { type: "string", required: true, description: "AAR 复盘" },
+                        selfEvaluationText: { type: "string", required: true, description: "自评" },
+                        isPublic: { type: "boolean", required: false, description: "是否公开" }
+                      },
+                      transport: "Redis Stream (消息总线，异步处理)"
+                    }
+                  },
+                  protocol: "NSEAP Agent Protocol v1.0 / P3394-compatible"
                 };
                 const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
