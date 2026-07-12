@@ -31,7 +31,7 @@ export function getRedis(): Redis | null {
   try {
     _redis = new Redis(url, {
       maxRetriesPerRequest: 3,
-      enableOfflineQueue: false,  // fail fast on disconnect, don't queue commands
+      enableOfflineQueue: false,  // fail fast on disconnect — no command queueing
       connectTimeout: 3_000,       // 3s cap on connection attempts
       retryStrategy(times) {
         if (times > 3) {
@@ -41,7 +41,6 @@ export function getRedis(): Redis | null {
         }
         return Math.min(times * 200, 2000);
       },
-      lazyConnect: true,
     });
 
     _redis.on("error", () => {
@@ -61,6 +60,9 @@ export function getRedis(): Redis | null {
 export async function redisPing(): Promise<{ ok: boolean; ms?: number; error?: string }> {
   const redis = getRedis();
   if (!redis) return { ok: false, error: "REDIS_URL not configured or unavailable" };
+  // With enableOfflineQueue:false, commands sent before connection reject.
+  // Pretend "not ready yet" is unavailable for health-check purposes.
+  if (redis.status !== "ready") return { ok: false, error: `Redis not ready (status: ${redis.status})` };
   try {
     const start = Date.now();
     const result = await redis.ping();

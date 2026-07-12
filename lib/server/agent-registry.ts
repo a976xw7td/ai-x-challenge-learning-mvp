@@ -4,6 +4,15 @@
 import { getRedis } from "./redis";
 import type { ServicePrincipal } from "../schemas/envelope-v2.schema";
 
+/** True if Redis is connected and ready for commands.
+ *  With enableOfflineQueue:false + lazyConnect:true, commands
+ *  sent before connection will reject — callers must check this first. */
+function redisReady(): ReturnType<typeof getRedis> {
+  const r = getRedis();
+  if (!r || r.status !== "ready") return null;
+  return r;
+}
+
 const REGISTRY_PREFIX = "agent:registry:";
 
 /** System agent IDs protected from hijack/unregistration by non-admin callers. */
@@ -37,7 +46,7 @@ export async function registerAgent(
   sp: ServicePrincipal,
   capabilities: string[],
 ): Promise<void> {
-  const redis = getRedis();
+  const redis = redisReady();
   const now = new Date().toISOString();
 
   const entry: AgentRegistration = {
@@ -60,7 +69,7 @@ export async function registerAgent(
 // ---- Unregister ----
 
 export async function unregisterAgent(agentId: string): Promise<void> {
-  const redis = getRedis();
+  const redis = redisReady();
   if (redis) {
     await redis.del(registryKey(agentId));
   }
@@ -70,7 +79,7 @@ export async function unregisterAgent(agentId: string): Promise<void> {
 // ---- Heartbeat ----
 
 export async function agentHeartbeat(agentId: string): Promise<void> {
-  const redis = getRedis();
+  const redis = redisReady();
   if (!redis) return;
 
   const raw = await redis.get(registryKey(agentId));
@@ -85,7 +94,7 @@ export async function agentHeartbeat(agentId: string): Promise<void> {
 // ---- Lookup ----
 
 export async function lookupAgent(agentId: string): Promise<AgentRegistration | null> {
-  const redis = getRedis();
+  const redis = redisReady();
   if (redis) {
     const raw = await redis.get(registryKey(agentId));
     if (raw) return JSON.parse(raw) as AgentRegistration;
@@ -96,7 +105,7 @@ export async function lookupAgent(agentId: string): Promise<AgentRegistration | 
 // ---- List ----
 
 export async function listAgents(): Promise<AgentRegistration[]> {
-  const redis = getRedis();
+  const redis = redisReady();
   if (!redis) return [];
 
   const keys = await redis.keys(`${REGISTRY_PREFIX}*`);

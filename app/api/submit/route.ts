@@ -8,7 +8,6 @@ import { publishEnvelope } from "@/lib/server/redis-stream";
 import { busAdapter } from "@/lib/server/bus-adapter";
 import { buildEnvelope } from "@/lib/server/agents";
 import { createTask } from "@/lib/server/tasks";
-import { getRedis } from "@/lib/server/redis";
 import { makeId } from "@/lib/server/ids";
 
 export async function POST(request: Request) {
@@ -41,17 +40,18 @@ export async function POST(request: Request) {
       : "student-companion-webapp-fallback";
 
     // AGENT_CN.md §8.2: Agent channels MUST go through Redis Stream (no sync fallback)
-    const redis = getRedis();
+    // Check REAL availability — client object existing ≠ connection healthy
+    const busAvailable = busAdapter.isAvailable();
 
-    if (isAgentChannel && !redis) {
+    if (isAgentChannel && !busAvailable) {
       return NextResponse.json(
         { ok: false, error: "消息总线不可用，请稍后重试" },
         { status: 503 },
       );
     }
 
-    // Publish to Stream if Redis is available
-    if (redis) {
+    // Publish to Stream if bus is available
+    if (busAvailable) {
       const taskId = makeId("task");
       await createTask(taskId, "submission_request", input.studentId);
 
