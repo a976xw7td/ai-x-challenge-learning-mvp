@@ -8,6 +8,7 @@ import {
 } from "./agents";
 import { checkTrust, agentToSP, needsApproval } from "./service-principal";
 import { getRedis } from "./redis";
+import { RoutingExtensionSchema } from "../schemas/envelope-v2.schema";
 
 type HandlerFn = (envelope: MessageEnvelope) => Promise<void>;
 
@@ -65,7 +66,7 @@ export function appendRouteHop(
     return envelope;
   }
 
-  return {
+  const stamped = {
     ...envelope,
     route: [
       ...route,
@@ -77,6 +78,17 @@ export function appendRouteHop(
       },
     ],
   } as MessageEnvelope;
+
+  // Validate route structure (non-blocking)
+  const routeCheck = RoutingExtensionSchema.safeParse({
+    protocol,
+    route: stamped["route" as keyof typeof stamped] || (stamped as Record<string, unknown>)["route"],
+  });
+  if (!routeCheck.success) {
+    console.warn("[handler] Route schema violation:", routeCheck.error.message);
+  }
+
+  return stamped;
 }
 
 export async function handleMessage(envelope: MessageEnvelope): Promise<void> {

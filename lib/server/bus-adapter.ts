@@ -7,6 +7,11 @@
 // The bus adapter stamps protocol and origin hop in publish() so business code
 // never hardcodes protocol values. Forward/deliver hops are added by the consumer.
 //
+// ⚠️  NOTE: stamped envelopes carry extra `protocol` + `route` fields that are
+// NOT in Team3's MessageEnvelopeSchema (.strict()). Never re-parse a consumed
+// envelope with MessageEnvelopeSchema — it will throw. Strip protocol/route
+// first, or use JSON.parse + RoutingExtensionSchema for the routing part.
+//
 // Usage:
 //   import { busAdapter } from "./bus-adapter";
 //   await busAdapter.publish(envelope);

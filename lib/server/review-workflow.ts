@@ -11,6 +11,7 @@ import {
 } from "./agents";
 import { enqueue, flush } from "./audit-outbox";
 import { notifyStudent } from "./notify";
+import { updateStudentMemory } from "./ontology-memory";
 
 export interface TeacherReviewInput {
   submissionId: string;
@@ -117,6 +118,16 @@ ${actionText}
 
     enqueue(audit.entries);
     flush();
+
+    // AGENT_CN.md §3.3: update ontology memory after teacher review.
+    void updateStudentMemory(input.studentId, {
+      learning_state: "reviewed",
+      last_feedback: {
+        from: WEBAPP_FALLBACK_TEACHER_AGENT,
+        summary_pointer: input.submissionId,
+        ts: new Date().toISOString(),
+      },
+    }).catch(() => {});
 
     return {
       ok: true,

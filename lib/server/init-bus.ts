@@ -6,8 +6,11 @@ import { busAdapter } from "./bus-adapter";
 import { updateTaskStatus } from "./tasks";
 import { bootstrapRegistry, lookupAgent } from "./agent-registry";
 import { setRegistryLookup } from "./service-principal";
+import { enqueue } from "./audit-outbox";
+import { makeId } from "./ids";
 import type { ServicePrincipal } from "../schemas/envelope-v2.schema";
 import type { MessageEnvelope } from "../schemas/zod-from-schemas";
+import type { AuditLog } from "../schemas/zod-from-schemas";
 import type { SubmissionInput } from "./types";
 
 // ---- Handler implementations ----
@@ -89,6 +92,30 @@ async function handleManualReviewAdjustment(envelope: MessageEnvelope): Promise<
 
 // ---- Startup ----
 
+/** Persist route trace to audit (AGENT_CN.md §8.1).
+ *  Fire-and-forget — must never throw or block message processing. */
+function persistRouteTrace(envelope: MessageEnvelope): void {
+  try {
+    const existing = envelope as Record<string, unknown>;
+    const route = existing["route"] as Array<Record<string, unknown>> | undefined;
+    if (!route || route.length === 0) return;
+
+    const trace: AuditLog = {
+      audit_id: makeId("audit"),
+      timestamp: new Date().toISOString(),
+      agent_id: envelope.to_agent,
+      action: "route_trace",
+      target_resource: envelope.message_id,
+      related_message_id: envelope.message_id,
+      after_state: { type: "route_trace", route },
+    };
+    enqueue([trace]);
+    console.log(`[bus] Route trace persisted: ${envelope.message_id} (${route.length} hops)`);
+  } catch (err) {
+    console.warn("[bus] Route trace persist failed:", err instanceof Error ? err.message : String(err));
+  }
+}
+
 export async function initMessageBus(): Promise<void> {
   // Register handlers for each message type
   registerHandler("submission_request", handleSubmissionRequest);
@@ -118,8 +145,9 @@ export async function initMessageBus(): Promise<void> {
   const subConsumer = busAdapter.subscribe("submission-task-agent", "submission-consumer-1", async (env, id) => {
     const forwarded = appendRouteHop(env, "forward");
     await handleMessage(forwarded);
-    // On success, the message was fully processed — no deliver hop needed
-    // because we ACK right after handler returns (done in bus-adapter).
+    // On success, stamp deliver hop + persist full route trace
+    const delivered = appendRouteHop(forwarded, "deliver");
+    persistRouteTrace(delivered);
   }, abortController.signal).catch((err) => {
     console.error("[bus] Submission consumer crashed:", err);
   });
@@ -127,6 +155,8 @@ export async function initMessageBus(): Promise<void> {
   const reviewConsumer = busAdapter.subscribe("review-task-agent", "review-consumer-1", async (env, id) => {
     const forwarded = appendRouteHop(env, "forward");
     await handleMessage(forwarded);
+    const delivered = appendRouteHop(forwarded, "deliver");
+    persistRouteTrace(delivered);
   }, abortController.signal).catch((err) => {
     console.error("[bus] Review consumer crashed:", err);
   });

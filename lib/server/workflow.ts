@@ -19,6 +19,7 @@ import {
 import { enqueue, flush } from "./audit-outbox";
 import { notifyStudent } from "./notify";
 import { getRedis } from "./redis";
+import { updateStudentMemory } from "./ontology-memory";
 
 // T22: Redis-backed deduplication for submission idempotency.
 // Key: `${studentId}:${challengeId}:${githubRepoUrl}`, TTL: 60s.
@@ -307,6 +308,20 @@ export async function submitChallengeProject(
       audit,
     );
     audit.log(SUBMISSION_TASK_AGENT, "create_submission_record", String(submission.submission_id));
+
+    // AGENT_CN.md §3.3: update ontology memory after successful submission.
+    // Fire-and-forget — memory is a disposable snapshot, failure must not block.
+    // TODO: merge skills_used with existing memory instead of overwriting.
+    void updateStudentMemory(input.studentId, {
+      active_challenge_id: challenge.challenge_id,
+      learning_state: "submitted",
+      last_submission: {
+        submission_id: submission.submission_id,
+        challenge_id: challenge.challenge_id,
+        status: "submitted",
+        ts: new Date().toISOString(),
+      },
+    }).catch(() => {});
 
     // P2: Peer allocation for peer_only and teacher_and_peer modes
     if (reviewMode === "peer_only" || reviewMode === "teacher_and_peer") {
