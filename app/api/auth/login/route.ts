@@ -2,8 +2,9 @@
 // Client sends {studentId, name}; server validates against Feishu Students table,
 // determines role server-side, and signs an HttpOnly session cookie.
 import { NextResponse } from "next/server";
-import { getStudentById } from "@/lib/server/feishu";
+import { getStudentById, updateStudent } from "@/lib/server/feishu";
 import { signToken, determineRole, SESSION_COOKIE } from "@/lib/server/principal";
+import { generateApiKey } from "@/lib/server/agent-auth";
 
 export async function POST(request: Request) {
   try {
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Name check: case-insensitive, trimmed
+    // Name check
     if (student.name.trim().toLowerCase() !== name.toLowerCase()) {
       return NextResponse.json(
         { ok: false, error: "姓名不匹配" },
@@ -37,9 +38,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Determine role SERVER-SIDE ONLY (client never sends role)
-    const studentsRole = (student as unknown as Record<string, unknown>)["role"] as string | undefined;
-    const role = determineRole(studentId, studentsRole);
+    // P2: Auto-generate API key on first login (one per student, stored in Feishu)
+    let apiKey = student.api_key;
+    if (!apiKey && student.recordId) {
+      apiKey = generateApiKey();
+      await updateStudent(student.recordId, { api_key: apiKey }).catch((err) => {
+        console.warn("[login] Failed to save API key:", err instanceof Error ? err.message : String(err));
+      });
+    }
+
+    // Determine role SERVER-SIDE ONLY
+    const role = determineRole(studentId, (student as unknown as Record<string, unknown>)["role"] as string | undefined);
 
     // Sign session token
     const token = signToken({
@@ -53,15 +62,15 @@ export async function POST(request: Request) {
       person: studentId,
       role,
       name: student.name,
+      api_key: apiKey || undefined,  // show key to student
     });
 
-    // Set HttpOnly session cookie
     response.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24, // 24 hours
+      maxAge: 60 * 60 * 24,
     });
 
     return response;

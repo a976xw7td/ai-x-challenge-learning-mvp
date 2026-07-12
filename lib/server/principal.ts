@@ -4,7 +4,7 @@
 import { createHmac } from "crypto";
 import { cookies, headers } from "next/headers";
 import { optionalEnv } from "./env";
-import { resolveAgentApiKey } from "./agent-auth";
+import { resolveAgentApiKey, resolveStudentApiKey } from "./agent-auth";
 
 export interface ServicePrincipal {
   person: string;
@@ -71,10 +71,13 @@ export async function getAgentPrincipal(): Promise<ServicePrincipal | null> {
     const apiKey = hdrs.get("x-api-key");
     if (!apiKey) return null;
 
+    // Try hardcoded keys first (WorkBuddy/Hermes)
     const sp = resolveAgentApiKey(apiKey.trim());
-    if (sp) {
-      return { person: sp.person, org: sp.org, role: sp.role };
-    }
+    if (sp) return { person: sp.person, org: sp.org, role: sp.role };
+
+    // Try Students table keys (auto-generated for each student)
+    const studentSp = await resolveStudentApiKey(apiKey.trim());
+    if (studentSp) return { person: studentSp.person, org: studentSp.org, role: studentSp.role };
   } catch {
     // headers() throws outside of request context
   }

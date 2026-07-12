@@ -87,6 +87,7 @@ const FEISHU_FIELD_NAMES: Record<string, string> = {
   cover_image_url: "封面图链接",
   skills: "技能",
   ai_feedback_summary: "AI反馈摘要",
+  api_key: "API Key",
 };
 
 function appToken() {
@@ -178,6 +179,7 @@ function normalizeStudent(record: { record_id: string; fields: Record<string, un
     name: asString(field(f, "name")),
     email: asString(field(f, "email")),
     feishu_open_id: asString(field(f, "feishu_open_id")),
+    api_key: asString(field(f, "api_key")),
     github_username: asString(field(f, "github_username")),
     github_profile_url: asString(field(f, "github_profile_url")),
     school: asString(field(f, "school")),
@@ -251,6 +253,25 @@ export async function getStudentById(studentId: string) {
   const student = students.find((item) => item.student_id === studentId);
   if (!student) throw new Error(`Student not found: ${studentId}`);
   return student;
+}
+
+export async function updateStudent(recordId: string, fields: Record<string, unknown>): Promise<void> {
+  const token = await getTenantAccessToken();
+  const resp = await fetch(
+    `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken()}/tables/${requireEnv("FEISHU_STUDENTS_TABLE_ID")}/records/${recordId}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({ fields: toFeishuFields(fields) }),
+    },
+  );
+  const payload = await resp.json();
+  if (!resp.ok || payload.code !== 0) {
+    throw new Error(`Feishu update failed: ${payload.msg || resp.statusText}`);
+  }
 }
 
 export async function getPublishedChallenges() {

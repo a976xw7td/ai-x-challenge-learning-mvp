@@ -22,7 +22,7 @@ function loadKeyMap(): Map<string, string> {
 
   for (const pair of raw.split(",")) {
     const [agentId, ...keyParts] = pair.trim().split(":");
-    const key = keyParts.join(":"); // handle keys with colons
+    const key = keyParts.join(":");
     if (agentId && key) {
       _keyMap.set(key.trim(), agentId.trim());
     }
@@ -38,13 +38,41 @@ function loadKeyMap(): Map<string, string> {
 
 /**
  * Resolve an API key to a Service Principal.
- * Returns null if the key is invalid or not configured.
+ * Checks: 1) hardcoded env keys (WorkBuddy/Hermes), 2) Students table keys
  */
 export function resolveAgentApiKey(apiKey: string): ServicePrincipal | null {
+  // 1. Check hardcoded keys (env)
   const keyMap = loadKeyMap();
   const agentId = keyMap.get(apiKey);
-  if (!agentId) return null;
-  return agentToSP(agentId);
+  if (agentId) return agentToSP(agentId);
+
+  return null;
+}
+
+/**
+ * Resolve from Students table. Must be called with await since it hits Feishu.
+ * Returns { person: "student_<studentId>", org: "elite20", role: "agent" }
+ */
+export async function resolveStudentApiKey(apiKey: string): Promise<ServicePrincipal | null> {
+  const keyMap = loadKeyMap();
+  if (keyMap.has(apiKey)) return null; // already handled by resolveAgentApiKey
+
+  // Check Students table
+  try {
+    const { getStudents } = await import("./feishu");
+    const students = await getStudents();
+    const match = students.find((s) => s.api_key === apiKey);
+    if (match) {
+      return {
+        person: `student-companion-${match.student_id}`,
+        org: "elite20",
+        role: "agent",
+      };
+    }
+  } catch {
+    // Feishu unavailable — skip
+  }
+  return null;
 }
 
 /**
