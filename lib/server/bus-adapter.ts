@@ -1,0 +1,197 @@
+// Bus Adapter — P3 T1: transport-agnostic message bus (ADR-001, §5.0).
+// Abstracts over Redis Stream (current) and Hermes/OpenClaw (future).
+// The bus constraint (§5.0) is enforced here: agent channels MUST use publish(),
+// never bypass the bus to write business tables directly.
+//
+// Usage:
+//   import { busAdapter } from "./bus-adapter";
+//   await busAdapter.publish(envelope);
+import type { MessageEnvelope } from "../schemas/zod-from-schemas";
+import { getRedis } from "./redis";
+
+// ---- Abstract interface ----
+
+export interface BusAdapter {
+  /** Publish an envelope to the bus. Returns the message ID. */
+  publish(envelope: MessageEnvelope): Promise<string | null>;
+
+  /** Start consuming from the bus. Calls handler for each message. */
+  subscribe(
+    group: string,
+    consumer: string,
+    handler: (envelope: MessageEnvelope, id: string) => Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void>;
+
+  /** True if the bus is available. */
+  isAvailable(): boolean;
+}
+
+// ---- Redis Stream adapter ----
+
+class RedisBusAdapter implements BusAdapter {
+  private readonly STREAM = "nseap:messages";
+  private readonly MAX_LEN = 10_000;
+
+  isAvailable(): boolean {
+    return getRedis() !== null;
+  }
+
+  async publish(envelope: MessageEnvelope): Promise<string | null> {
+    const redis = getRedis();
+    if (!redis) return null;
+
+    return redis.xadd(
+      this.STREAM, "MAXLEN", "~", this.MAX_LEN, "*",
+      "envelope", JSON.stringify(envelope),
+    );
+  }
+
+  async subscribe(
+    group: string,
+    consumer: string,
+    handler: (envelope: MessageEnvelope, id: string) => Promise<void>,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const redis = getRedis();
+    if (!redis) return;
+
+    // Ensure consumer group exists
+    try {
+      await redis.xgroup("CREATE", this.STREAM, group, "0", "MKSTREAM");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("BUSYGROUP")) throw err;
+    }
+
+    // Claim stale pending messages
+    await this.claimPending(redis, group, consumer, handler);
+
+    // Main read loop
+    while (!signal?.aborted) {
+      try {
+        const results = await redis.xreadgroup(
+          "GROUP", group, consumer,
+          "COUNT", 5, "BLOCK", 5000,
+          "STREAMS", this.STREAM, ">",
+        ) as [string, Array<[string, string[]]>][] | null;
+
+        if (!results) continue;
+        for (const [, messages] of results) {
+          for (const [id, fields] of messages) {
+            const idx = fields.indexOf("envelope");
+            if (idx < 0) continue;
+            const envStr = fields[idx + 1];
+            try {
+              const envelope = JSON.parse(envStr) as MessageEnvelope;
+              await handler(envelope, id);
+              await redis.xack(this.STREAM, group, id);
+            } catch (err) {
+              console.error(`[bus:redis] Handler error ${id}:`, err);
+              // Check if should move to dead letter
+              const pending = await redis.xpending(this.STREAM, group, id, id, 1) as Array<[string, string, number, number]> | null;
+              if (pending?.[0]?.[3] && pending[0][3] >= 3) {
+                await redis.xadd("nseap:dead-letter", "*",
+                  "envelope", envStr,
+                  "error", err instanceof Error ? err.message : String(err),
+                  "original_id", id,
+                );
+                await redis.xack(this.STREAM, group, id);
+                console.error(`[bus:redis] DEAD LETTER: ${id}`);
+              }
+            }
+          }
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("Connection") || msg.includes("ECONNREFUSED")) {
+          await new Promise((r) => setTimeout(r, 5000));
+        } else {
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+    }
+  }
+
+  private async claimPending(
+    redis: NonNullable<ReturnType<typeof getRedis>>,
+    group: string,
+    consumer: string,
+    handler: (envelope: MessageEnvelope, id: string) => Promise<void>,
+  ): Promise<void> {
+    try {
+      const pending = await redis.xpending(this.STREAM, group, "-", "+", 100) as Array<{ id: string; milliseconds_elapsed: number }> | null;
+      if (!pending) return;
+
+      for (const entry of pending) {
+        if (entry.milliseconds_elapsed < 30_000) continue;
+        const claimed = await redis.xclaim(
+          this.STREAM, group, consumer, 30_000, entry.id, "JUSTID",
+        ) as string[] | null;
+
+        if (claimed?.length) {
+          const msgs = await redis.xrange(this.STREAM, entry.id, entry.id) as [string, string[]][];
+          for (const [, fields] of msgs) {
+            const idx = fields.indexOf("envelope");
+            if (idx < 0) continue;
+            const envelope = JSON.parse(fields[idx + 1]) as MessageEnvelope;
+            await handler(envelope, entry.id);
+            await redis.xack(this.STREAM, group, entry.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[bus:redis] Claim error:", err);
+    }
+  }
+}
+
+// ---- Hermes/OpenClaw stub adapter (P3) ----
+
+class HermesBusAdapter implements BusAdapter {
+  private _available = false;
+
+  isAvailable(): boolean {
+    return this._available;
+  }
+
+  async publish(envelope: MessageEnvelope): Promise<string | null> {
+    // TODO: Hermes/OpenClaw SDK integration
+    console.log("[bus:hermes] publish (stub):", envelope.message_type);
+    return null;
+  }
+
+  async subscribe(
+    _group: string,
+    _consumer: string,
+    _handler: (envelope: MessageEnvelope, id: string) => Promise<void>,
+    _signal?: AbortSignal,
+  ): Promise<void> {
+    console.log("[bus:hermes] subscribe (stub)");
+  }
+}
+
+// ---- Singleton adapter (selects based on config) ----
+
+let _adapter: BusAdapter | null = null;
+
+export function getBusAdapter(): BusAdapter {
+  if (_adapter) return _adapter;
+
+  if (process.env.HERMES_BUS_URL) {
+    console.log("[bus] Using Hermes/OpenClaw bus (stub)");
+    _adapter = new HermesBusAdapter();
+  } else {
+    console.log("[bus] Using Redis Stream bus");
+    _adapter = new RedisBusAdapter();
+  }
+
+  return _adapter;
+}
+
+// Convenience: lazy singleton that always routes to the current adapter
+export const busAdapter = {
+  get publish() { return getBusAdapter().publish.bind(getBusAdapter()); },
+  get subscribe() { return getBusAdapter().subscribe.bind(getBusAdapter()); },
+  get isAvailable() { return getBusAdapter().isAvailable.bind(getBusAdapter()); },
+};

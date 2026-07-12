@@ -5,6 +5,7 @@ import { getPrincipal } from "@/lib/server/principal";
 import { AuditTrail, SUBMISSION_TASK_AGENT } from "@/lib/server/agents";
 import { enqueue, flush } from "@/lib/server/audit-outbox";
 import { publishEnvelope } from "@/lib/server/redis-stream";
+import { busAdapter } from "@/lib/server/bus-adapter";
 import { buildEnvelope } from "@/lib/server/agents";
 import { createTask } from "@/lib/server/tasks";
 import { getRedis } from "@/lib/server/redis";
@@ -63,7 +64,8 @@ export async function POST(request: Request) {
         auditId: auditTraceId,
       });
 
-      const streamId = await publishEnvelope(envelope);
+      // P3 T1: Publish via bus adapter (Redis | Hermes)
+      const streamId = await busAdapter.publish(envelope);
 
       if (!streamId) {
         if (isAgentChannel) {

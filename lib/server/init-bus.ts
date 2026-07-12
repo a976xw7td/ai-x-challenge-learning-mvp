@@ -2,6 +2,7 @@
 // Registers message handlers and starts Redis Stream consumers.
 import { registerHandler, handleMessage } from "./message-handler";
 import { startConsumer } from "./redis-stream";
+import { busAdapter } from "./bus-adapter";
 import { updateTaskStatus } from "./tasks";
 import { bootstrapRegistry, lookupAgent } from "./agent-registry";
 import { setRegistryLookup } from "./service-principal";
@@ -108,13 +109,14 @@ export async function initMessageBus(): Promise<void> {
   // Start consumers in background
   const abortController = new AbortController();
 
-  startConsumer("submission-task-agent", "submission-consumer-1", async (env, id) => {
+  // P3 T1: Subscribe via bus adapter (transport-agnostic)
+  busAdapter.subscribe("submission-task-agent", "submission-consumer-1", async (env, id) => {
     await handleMessage(env);
   }, abortController.signal).catch((err) => {
     console.error("[bus] Submission consumer crashed:", err);
   });
 
-  startConsumer("review-task-agent", "review-consumer-1", async (env, id) => {
+  busAdapter.subscribe("review-task-agent", "review-consumer-1", async (env, id) => {
     await handleMessage(env);
   }, abortController.signal).catch((err) => {
     console.error("[bus] Review consumer crashed:", err);
