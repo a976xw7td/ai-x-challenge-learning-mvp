@@ -47,8 +47,18 @@ const FEISHU_FIELD_NAMES: Record<string, string> = {
   rubric: "评分标准",
   deadline: "截止时间",
   created_by: "创建人",
+  teacher_id: "教师ID",
+  teacher_agent_id: "教师AgentID",
+  feishu_group_id: "飞书群ID",
+  airtable_record_id: "Airtable记录ID",
+  ontology_nodes: "本体节点",
+  learning_objectives: "学习目标",
+  required_deliverables: "必要交付物",
+  rubric_pointer: "评分标准链接",
+  updated_at: "更新时间",
   submission_id: "提交ID",
   github_repo_url: "GitHub仓库链接",
+  github_repo: "GitHub仓库",
   demo_url: "演示链接",
   summary: "摘要",
   submitted_at: "提交时间",
@@ -63,6 +73,28 @@ const FEISHU_FIELD_NAMES: Record<string, string> = {
   self_evaluation_text: "自评文本",
   github_check_result: "GitHub检查结果",
   is_public: "是否公开",
+  submitted_by_agent_id: "提交者AgentID",
+  processed_by_agent_id: "处理者AgentID",
+  submission_task_agent_id: "提交TaskAgentID",
+  student_feishu_bot_id: "学生飞书BotID",
+  admin_identity_mode: "管理员身份模式",
+  admin_user_id: "管理员用户ID",
+  submission_request_id: "提交请求ID",
+  audit_log_pointer: "审计日志链接",
+  review_mode: "评审模式",
+  routing_status: "路由状态",
+  review_status: "评审状态",
+  task_state: "任务状态",
+  github_branch: "GitHub分支",
+  github_commit: "GitHub提交",
+  submitted_files: "提交文件",
+  self_reflection_pointer: "自评链接",
+  skills_used: "使用技能",
+  ontology_nodes_used: "使用本体节点",
+  system_validation_status: "系统校验状态",
+  routed_to_teacher_agent_id: "路由到教师AgentID",
+  routed_to_peer_agent_ids: "路由到同伴AgentID",
+  feedback_pointer: "反馈链接",
   evaluation_id: "评价ID",
   score: "分数",
   level: "等级",
@@ -205,6 +237,17 @@ function normalizeChallenge(record: { record_id: string; fields: Record<string, 
     deadline: asString(field(f, "deadline")),
     status: asString(field(f, "status")),
     created_by: asString(field(f, "created_by")),
+    teacher_id: asString(field(f, "teacher_id")),
+    teacher_agent_id: asString(field(f, "teacher_agent_id")),
+    feishu_group_id: asString(field(f, "feishu_group_id")),
+    airtable_record_id: asString(field(f, "airtable_record_id")),
+    ontology_nodes: asString(field(f, "ontology_nodes")),
+    learning_objectives: asString(field(f, "learning_objectives")),
+    required_deliverables: asString(field(f, "required_deliverables")),
+    rubric_pointer: asString(field(f, "rubric_pointer")),
+    skills: asString(field(f, "skills")),
+    created_at: asString(field(f, "created_at")),
+    updated_at: asString(field(f, "updated_at")),
   };
 }
 
@@ -350,6 +393,7 @@ export type SubmissionRecord = FeishuRecord<{
   project_title: string;
   project_summary?: string;
   github_repo_url?: string;
+  github_repo?: string;
   github_branch?: string;
   github_commit?: string;
   github_check_result?: string;
@@ -360,10 +404,22 @@ export type SubmissionRecord = FeishuRecord<{
   status?: string;
   task_state?: string;
   review_mode?: string;
+  review_status?: string;
   routing_status?: string;
   submitted_at?: string;
+  updated_at?: string;
   is_public?: boolean;
   score_total?: number;
+  submitted_by_agent_id?: string;
+  processed_by_agent_id?: string;
+  submission_task_agent_id?: string;
+  admin_identity_mode?: string;
+  submission_request_id?: string;
+  audit_log_pointer?: string;
+  system_validation_status?: string;
+  routed_to_teacher_agent_id?: string;
+  routed_to_peer_agent_ids?: string;
+  skills_used?: string;
 }>;
 
 function normalizeSubmission(record: { record_id: string; fields: Record<string, unknown> }): SubmissionRecord {
@@ -391,6 +447,20 @@ function normalizeSubmission(record: { record_id: string; fields: Record<string,
     submitted_at: asString(field(f, "submitted_at")),
     is_public: asBoolean(field(f, "is_public")),
     score_total: Number(field(f, "score_total") || "0"),
+    // P2: AGENT_CN.md S7.2 extended fields
+    github_repo: asString(field(f, "github_repo")),
+    review_status: asString(field(f, "review_status")),
+    updated_at: asString(field(f, "updated_at")),
+    submitted_by_agent_id: asString(field(f, "submitted_by_agent_id")),
+    processed_by_agent_id: asString(field(f, "processed_by_agent_id")),
+    submission_task_agent_id: asString(field(f, "submission_task_agent_id")),
+    admin_identity_mode: asString(field(f, "admin_identity_mode")),
+    submission_request_id: asString(field(f, "submission_request_id")),
+    audit_log_pointer: asString(field(f, "audit_log_pointer")),
+    system_validation_status: asString(field(f, "system_validation_status")),
+    routed_to_teacher_agent_id: asString(field(f, "routed_to_teacher_agent_id")),
+    routed_to_peer_agent_ids: asString(field(f, "routed_to_peer_agent_ids")),
+    skills_used: asString(field(f, "skills_used")),
   };
 }
 

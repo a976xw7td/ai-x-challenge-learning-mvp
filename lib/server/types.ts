@@ -29,6 +29,17 @@ export type Challenge = {
   deadline?: string;
   status?: string;
   created_by?: string;
+  teacher_id?: string;
+  teacher_agent_id?: string;
+  feishu_group_id?: string;
+  airtable_record_id?: string;
+  ontology_nodes?: string;
+  learning_objectives?: string;
+  required_deliverables?: string;
+  rubric_pointer?: string;
+  skills?: string;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type SubmissionInput = {

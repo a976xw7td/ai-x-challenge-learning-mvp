@@ -289,13 +289,20 @@ export async function submitChallengeProject(
       {
         submitted_by_agent_id: fromAgent,
         processed_by_agent_id: SUBMISSION_TASK_AGENT,
+        submission_task_agent_id: SUBMISSION_TASK_AGENT,
         admin_identity_mode: ADMIN_IDENTITY_MODE,
         submission_request_id: envelope.request_id,
         audit_log_pointer: audit.traceId,
         review_mode: reviewMode,
         routing_status: routingStatus,
+        review_status: routingStatus === "routed_to_teacher" ? "pending_teacher_review" : routingStatus,
+        system_validation_status: githubCheck.repoExists ? "passed" : "failed",
+        routed_to_teacher_agent_id: routingStatus === "routed_to_teacher" ? REVIEW_TASK_AGENT : "",
         github_branch: input.githubBranch || githubCheck.defaultBranch || "",
         github_commit: githubCheck.latestCommitSha || "",
+        github_repo: input.githubRepoUrl,
+        updated_at: new Date().toISOString(),
+        skills_used: "",  // populated by AI evaluation
       },
       audit,
     );
