@@ -1,6 +1,6 @@
 // GET /api/submissions/[id] — Get single submission detail (T10)
 import { NextResponse } from "next/server";
-import { getSubmissionById } from "@/lib/server/feishu";
+import { getSubmissionById, getEvaluationsBySubmission } from "@/lib/server/feishu";
 import { getPrincipal } from "@/lib/server/principal";
 
 export async function GET(
@@ -25,15 +25,24 @@ export async function GET(
       );
     }
 
-    // Row-level: student can only see own submissions
+    // Row-level: student can see own submissions, or ones they were
+    // assigned to peer-review (P2).
+    let peerReview: { assigned: boolean; completed: boolean } | undefined;
     if (principal.role === "student" && submission.student_id !== principal.person) {
-      return NextResponse.json(
-        { ok: false, error: "无权查看此提交" },
-        { status: 403 },
+      const evaluations = await getEvaluationsBySubmission(id);
+      const mine = evaluations.filter(
+        (e) => e.evaluator_type === "peer" && e.evaluator_id === principal.person,
       );
+      if (mine.length === 0) {
+        return NextResponse.json(
+          { ok: false, error: "无权查看此提交" },
+          { status: 403 },
+        );
+      }
+      peerReview = { assigned: true, completed: mine.some((e) => !!e.feedback) };
     }
 
-    return NextResponse.json({ ok: true, submission });
+    return NextResponse.json({ ok: true, submission, peer_review: peerReview });
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Failed to load submission" },

@@ -14,8 +14,7 @@ import {
   MessageSquare,
   Star,
 } from "lucide-react";
-import { students } from "@/lib/data";
-import { fetchSubmissions, type SubmissionListItem } from "@/lib/api";
+import { fetchSubmissions, fetchStudents, type SubmissionListItem, type StudentInfo } from "@/lib/api";
 
 // Type for mapped submission rows
 interface SubmissionRow {
@@ -87,10 +86,15 @@ export default function TeacherPage() {
   // T14: Real submissions only (no mock fallback)
   const [realSubmissions, setRealSubmissions] = useState<SubmissionListItem[] | null>(null);
   const [subsLoading, setSubsLoading] = useState(true);
+  // De-mock: real student roster from /api/students
+  const [students, setStudents] = useState<StudentInfo[]>([]);
   useEffect(() => {
     fetchSubmissions().then((r) => {
       if (r.ok && r.submissions) setRealSubmissions(r.submissions);
       setSubsLoading(false);
+    });
+    fetchStudents().then((r) => {
+      if (r.ok && r.students) setStudents(r.students);
     });
   }, []);
 
@@ -371,12 +375,15 @@ export default function TeacherPage() {
       <div className="rounded-xl border border-gray-200 bg-white p-6">
         <h3 className="text-base font-semibold text-gray-900">班级提交概览</h3>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {students.length === 0 && (
+            <p className="col-span-full py-4 text-center text-sm text-gray-400">暂无学生数据</p>
+          )}
           {students.map((student) => {
-            const studentSubs = submissions.filter((s) => s.studentId === student.id);
+            const studentSubs = submissions.filter((s) => s.studentId === student.student_id);
             const doneCount = studentSubs.filter((s) => s.status === "已评分").length;
-            const progress = student.totalChallenges > 0 ? Math.round((student.completedChallenges / student.totalChallenges) * 100) : 0;
+            const progress = studentSubs.length > 0 ? Math.round((doneCount / studentSubs.length) * 100) : 0;
             return (
-              <div key={student.id} className="flex items-center gap-3 rounded-lg border border-gray-100 p-3">
+              <div key={student.student_id} className="flex items-center gap-3 rounded-lg border border-gray-100 p-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-700">
                   {student.name.charAt(0)}
                 </div>

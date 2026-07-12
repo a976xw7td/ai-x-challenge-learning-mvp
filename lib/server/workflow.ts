@@ -87,7 +87,7 @@ async function allocatePeers(
 
       // Notify peer via Feishu Bot
       notifyStudent(peer.student_id,
-        `👀 同学互评邀请\n\n${submitter.name} 提交了项目「${projectTitle}」，邀请你进行同伴评审。\n\n请在飞书多维表中查看提交详情并提交你的评分和反馈。`
+        `👀 同学互评邀请\n\n${submitter.name} 提交了项目「${projectTitle}」，邀请你进行同伴评审。\n\n请登录学习平台，在「仪表盘 → 待我评审」中查看详情并提交你的评分和反馈。`
       ).then((result) => {
         if (!result.ok) {
           audit.log(SUBMISSION_TASK_AGENT, "peer_notify_failed", peer.student_id, {

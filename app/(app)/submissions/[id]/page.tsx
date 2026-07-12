@@ -17,7 +17,7 @@ import {
   Star,
   TrendingUp,
 } from "lucide-react";
-import { fetchSubmissionById, type SubmissionListItem } from "@/lib/api";
+import { fetchSubmissionById, submitPeerReview, type SubmissionListItem, type PeerReviewStatus } from "@/lib/api";
 
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   "已提交": { label: "已提交", color: "bg-blue-50 text-blue-700 border-blue-200", icon: Clock },
@@ -41,15 +41,40 @@ export default function SubmissionDetailPage() {
   const id = params.id as string;
 
   const [realSub, setRealSub] = useState<SubmissionListItem | null | undefined>(undefined);
+  const [peerReview, setPeerReview] = useState<PeerReviewStatus | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+
+  // Peer review form state (P2)
+  const [prScore, setPrScore] = useState(80);
+  const [prFeedback, setPrFeedback] = useState("");
+  const [prLoading, setPrLoading] = useState(false);
+  const [prResult, setPrResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     setLoading(true);
     fetchSubmissionById(id).then((r) => {
       setRealSub(r.ok && r.submission ? r.submission : null);
+      setPeerReview(r.peer_review);
       setLoading(false);
     });
   }, [id]);
+
+  const handlePeerReview = async () => {
+    if (!prFeedback.trim()) {
+      setPrResult({ ok: false, message: "请填写评审反馈" });
+      return;
+    }
+    setPrLoading(true);
+    setPrResult(null);
+    const r = await submitPeerReview({ submissionId: id, score: prScore, feedback: prFeedback.trim() });
+    if (r.ok) {
+      setPrResult({ ok: true, message: r.message || "同伴评审已提交" });
+      setPeerReview({ assigned: true, completed: true });
+    } else {
+      setPrResult({ ok: false, message: r.error || "提交失败" });
+    }
+    setPrLoading(false);
+  };
 
   if (loading) {
     return (
@@ -165,6 +190,39 @@ export default function SubmissionDetailPage() {
         </div>
 
         <div className="space-y-4">
+          {peerReview?.assigned && (
+            <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-5">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <Star className="h-4 w-4 text-purple-600" /> 同伴评审
+              </h3>
+              {peerReview.completed ? (
+                <div className="mt-3 flex items-center gap-2 text-sm text-green-700">
+                  <CheckCircle2 className="h-4 w-4" /> {prResult?.ok ? prResult.message : "你已完成对该提交的评审"}
+                </div>
+              ) : (
+                <div className="mt-3 space-y-3">
+                  <p className="text-xs text-gray-500">你被分配为该提交的同伴评审人，请打分并给出反馈。</p>
+                  <div>
+                    <label className="text-xs font-medium text-gray-700">评分（0-100）：{prScore}</label>
+                    <input type="range" min={0} max={100} value={prScore}
+                      onChange={(e) => setPrScore(Number(e.target.value))}
+                      className="mt-1 w-full accent-purple-600" />
+                  </div>
+                  <textarea value={prFeedback} onChange={(e) => setPrFeedback(e.target.value)} rows={3}
+                    placeholder="这个项目做得好的地方 / 可以改进的地方..."
+                    className="w-full rounded-lg border border-gray-200 py-2 px-3 text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500" />
+                  {prResult && !prResult.ok && (
+                    <p className="text-xs text-red-600">{prResult.message}</p>
+                  )}
+                  <button onClick={handlePeerReview} disabled={prLoading}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50">
+                    {prLoading && <Loader2 className="h-4 w-4 animate-spin" />} 提交同伴评审
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="rounded-xl border border-gray-200 bg-white p-5">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
               <MessageSquare className="h-4 w-4 text-primary-600" /> 教师反馈

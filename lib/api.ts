@@ -239,11 +239,51 @@ export async function fetchSubmissions(): Promise<{ ok: boolean; submissions?: S
   }
 }
 
-export async function fetchSubmissionById(id: string): Promise<{ ok: boolean; submission?: SubmissionListItem; error?: string }> {
+export type PeerReviewStatus = { assigned: boolean; completed: boolean };
+
+export async function fetchSubmissionById(id: string): Promise<{ ok: boolean; submission?: SubmissionListItem; peer_review?: PeerReviewStatus; error?: string }> {
   try {
     const res = await fetch(`/api/submissions/${id}`);
     return await res.json();
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "加载失败" };
+  }
+}
+
+// ---- Peer review (P2) ----
+
+export type PeerReviewItem = {
+  evaluation_id: string;
+  submission_id: string;
+  student_id: string;
+  challenge_id: string;
+  score_total: number;
+  feedback: string;
+  created_at: string;
+  pending: boolean;
+  project_title: string;
+  submitter_name: string;
+};
+
+/** List my peer-review assignments (student) or all evaluations (teacher). */
+export async function fetchMyPeerReviews(): Promise<{ ok: boolean; evaluations?: PeerReviewItem[]; error?: string }> {
+  try {
+    const res = await fetch("/api/evaluations");
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "加载失败" };
+  }
+}
+
+export async function submitPeerReview(input: { submissionId: string; score: number; feedback: string }): Promise<{ ok: boolean; message?: string; error?: string }> {
+  try {
+    const res = await fetch("/api/evaluations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ evaluator_type: "peer", ...input }),
+    });
+    return await res.json();
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "提交失败" };
   }
 }

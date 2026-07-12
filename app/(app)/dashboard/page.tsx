@@ -11,16 +11,20 @@ import {
   Clock,
   Loader2,
 } from "lucide-react";
-import { fetchDashboardStats, type DashboardStats } from "@/lib/api";
+import { fetchDashboardStats, fetchMyPeerReviews, type DashboardStats, type PeerReviewItem } from "@/lib/api";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingReviews, setPendingReviews] = useState<PeerReviewItem[]>([]);
 
   useEffect(() => {
     fetchDashboardStats().then((s) => {
       setStats(s);
       setLoading(false);
+    });
+    fetchMyPeerReviews().then((r) => {
+      if (r.ok && r.evaluations) setPendingReviews(r.evaluations.filter((e) => e.pending));
     });
   }, []);
 
@@ -93,6 +97,27 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* 待我评审 (P2 同伴评审) */}
+      {pendingReviews.length > 0 && (
+        <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-5">
+          <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+            <CheckCircle2 className="h-5 w-5 text-purple-600" /> 待我评审（{pendingReviews.length}）
+          </h3>
+          <div className="mt-3 space-y-2">
+            {pendingReviews.map((r) => (
+              <Link key={r.evaluation_id} href={`/submissions/${r.submission_id}`}
+                className="flex items-center justify-between rounded-lg border border-purple-100 bg-white px-4 py-3 text-sm hover:shadow-sm transition-all">
+                <div>
+                  <p className="font-medium text-gray-900">{r.project_title || r.submission_id}</p>
+                  <p className="text-xs text-gray-500">提交人：{r.submitter_name || r.student_id}</p>
+                </div>
+                <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-700">去评审</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 快捷入口 */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

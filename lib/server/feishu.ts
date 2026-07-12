@@ -354,15 +354,67 @@ export async function createEvaluation(fields: Record<string, unknown>) {
 
 // ---- Evaluations query (P2) ----
 
-export async function getEvaluationsBySubmission(submissionId: string): Promise<Array<Record<string, unknown>>> {
+export type EvaluationRecord = {
+  recordId: string;
+  evaluation_id: string;
+  submission_id: string;
+  student_id: string;
+  challenge_id: string;
+  evaluator_type: string;
+  evaluator_id: string;
+  score_total: number;
+  feedback: string;
+  created_at: string;
+};
+
+function normalizeEvaluation(record: { record_id: string; fields: Record<string, unknown> }): EvaluationRecord {
+  const f = record.fields;
+  return {
+    recordId: record.record_id,
+    evaluation_id: asString(field(f, "evaluation_id")),
+    submission_id: asString(field(f, "submission_id")),
+    student_id: asString(field(f, "student_id")),
+    challenge_id: asString(field(f, "challenge_id")),
+    evaluator_type: asString(field(f, "evaluator_type")),
+    evaluator_id: asString(field(f, "evaluator_id")),
+    score_total: Number(field(f, "score_total")) || 0,
+    feedback: asString(field(f, "feedback")),
+    created_at: asString(field(f, "created_at")),
+  };
+}
+
+export async function getEvaluations(): Promise<EvaluationRecord[]> {
   const rows = await listRecords(requireEnv("FEISHU_EVALUATIONS_TABLE_ID"));
-  return rows
-    .filter((r) => {
-      const f = r.fields;
-      const sid = field(f, "submission_id");
-      return asString(sid) === submissionId;
-    })
-    .map((r) => r.fields);
+  return rows.map(normalizeEvaluation);
+}
+
+export async function getEvaluationsBySubmission(submissionId: string): Promise<EvaluationRecord[]> {
+  const rows = await getEvaluations();
+  return rows.filter((r) => r.submission_id === submissionId);
+}
+
+export async function getEvaluationsByEvaluator(evaluatorId: string): Promise<EvaluationRecord[]> {
+  const rows = await getEvaluations();
+  return rows.filter((r) => r.evaluator_id === evaluatorId);
+}
+
+export async function updateEvaluation(recordId: string, fields: Record<string, unknown>): Promise<void> {
+  const token = await getTenantAccessToken();
+  const resp = await fetch(
+    `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken()}/tables/${requireEnv("FEISHU_EVALUATIONS_TABLE_ID")}/records/${recordId}`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({ fields: toFeishuFields(fields) }),
+    },
+  );
+  const payload = await resp.json();
+  if (!resp.ok || payload.code !== 0) {
+    throw new Error(`Feishu update failed: ${payload.msg || resp.statusText}`);
+  }
 }
 
 export async function createPortfolioItem(fields: Record<string, unknown>) {
