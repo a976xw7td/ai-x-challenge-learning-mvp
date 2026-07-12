@@ -13,6 +13,7 @@ import {
   type TrustedRelationship,
 } from "../schemas/zod-from-schemas";
 import { isTrustedV2 } from "./service-principal";
+import { ManifestOwnerSchema, type ManifestOwner } from "../schemas/envelope-v2.schema";
 
 // ---- Agent identities (WebApp fallback mode, whitepaper §7.4 phase 1) ----
 export const WEBAPP_FALLBACK_STUDENT_AGENT = "student-companion-webapp-fallback";
@@ -22,6 +23,9 @@ export const WEBAPP_FALLBACK_TEACHER_AGENT = "teacher-companion-webapp-fallback"
 export const ADMIN_IDENTITY_MODE = "teacher_delegated" as const;
 
 // ---- Agent Manifests (T4: loaded and validated at import time) ----
+// AGENT_CN.md §2.1: owner + memory_binding are required on every manifest.
+// Team3 schemas are .strict() and reject unknown fields, so we strip owner
+// before passing to Team3 parse, then validate it separately.
 import studentManifestRaw from "../../agents/manifests/student-companion-webapp-fallback.json";
 import submissionManifestRaw from "../../agents/manifests/submission-task-agent-001.json";
 import reviewManifestRaw from "../../agents/manifests/review-task-agent-001.json";
@@ -30,13 +34,48 @@ import hermesManifestRaw from "../../agents/manifests/hermes-student-companion.j
 import workbuddyManifestRaw from "../../agents/manifests/workbuddy-teacher-companion.json";
 import zhanghaoManifestRaw from "../../agents/manifests/student-companion-zhanghao-001.json";
 
-export const STUDENT_COMPANION_MANIFEST = StudentCompanionManifestSchema.parse(studentManifestRaw);
-export const SUBMISSION_TASK_MANIFEST = SubmissionTaskAgentManifestSchema.parse(submissionManifestRaw);
-export const REVIEW_TASK_MANIFEST = ReviewTaskAgentManifestSchema.parse(reviewManifestRaw);
-export const TEACHER_COMPANION_MANIFEST = TeacherCompanionManifestSchema.parse(teacherManifestRaw);
-export const HERMES_STUDENT_MANIFEST = StudentCompanionManifestSchema.parse(hermesManifestRaw);
-export const WORKBUDDY_TEACHER_MANIFEST = TeacherCompanionManifestSchema.parse(workbuddyManifestRaw);
-export const ZHANGHAO_STUDENT_MANIFEST = StudentCompanionManifestSchema.parse(zhanghaoManifestRaw);
+/** Parse a manifest with owner field support (AGENT_CN.md §2.1).
+ *  Team3 schemas are .strict() — owner is unknown to them, so we strip it,
+ *  pass the rest to Team3 parse, then validate owner with our own schema.
+ *  If owner is missing, we produce a readable error instead of a bare ZodError. */
+function parseManifestWithOwner<T>(
+  raw: unknown,
+  team3Schema: { parse: (data: unknown) => T },
+  agentId: string,
+): T & { owner: ManifestOwner } {
+  const obj = raw as Record<string, unknown>;
+  const { owner, ...core } = obj;
+
+  const manifest = team3Schema.parse(core);
+
+  if (!owner) {
+    throw new Error(
+      `Manifest "${agentId}" is missing required "owner" field (AGENT_CN.md §2.1). ` +
+      `Add: { "owner_type": "student"|"teacher"|"system", "owner_id": "<id>" }`
+    );
+  }
+
+  let ownerParsed: ManifestOwner;
+  try {
+    ownerParsed = ManifestOwnerSchema.parse(owner);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Manifest "${agentId}" owner field is invalid: ${msg}. ` +
+      `Expected: { "owner_type": "student"|"teacher"|"system", "owner_id": "<id>" }`
+    );
+  }
+
+  return { ...manifest, owner: ownerParsed };
+}
+
+export const STUDENT_COMPANION_MANIFEST = parseManifestWithOwner(studentManifestRaw, StudentCompanionManifestSchema, "student-companion-webapp-fallback");
+export const SUBMISSION_TASK_MANIFEST = parseManifestWithOwner(submissionManifestRaw, SubmissionTaskAgentManifestSchema, "submission-task-agent-001");
+export const REVIEW_TASK_MANIFEST = parseManifestWithOwner(reviewManifestRaw, ReviewTaskAgentManifestSchema, "review-task-agent-001");
+export const TEACHER_COMPANION_MANIFEST = parseManifestWithOwner(teacherManifestRaw, TeacherCompanionManifestSchema, "teacher-companion-webapp-fallback");
+export const HERMES_STUDENT_MANIFEST = parseManifestWithOwner(hermesManifestRaw, StudentCompanionManifestSchema, "hermes-student-companion");
+export const WORKBUDDY_TEACHER_MANIFEST = parseManifestWithOwner(workbuddyManifestRaw, TeacherCompanionManifestSchema, "workbuddy-teacher-companion");
+export const ZHANGHAO_STUDENT_MANIFEST = parseManifestWithOwner(zhanghaoManifestRaw, StudentCompanionManifestSchema, "student-companion-zhanghao-001");
 
 // ---- Trusted Relationship graph (Agent-inbox 7.6 supplement) ----
 export const TRUSTED_RELATIONSHIPS: TrustedRelationship[] = [

@@ -58,5 +58,9 @@
   "trusted_agents": ["submission-task-agent-001"],
   "channel_bindings": [
     { "channel_type": "web", "channel_id": "hermes" }
+  ],
+  "owner": { "owner_type": "system", "owner_id": "nseap-platform" },
+  "memory_binding": [
+    { "ontology_path": "nseap:memory:agent:student-companion-hermes" }
   ]
 }

@@ -77,5 +77,9 @@
   "trusted_agents": ["submission-task-agent-001"],
   "channel_bindings": [
     { "channel_type": "web", "channel_id": "workbuddy" }
+  ],
+  "owner": { "owner_type": "teacher", "owner_id": "teacher-001" },
+  "memory_binding": [
+    { "ontology_path": "nseap:memory:teacher:teacher-001" }
   ]
 }

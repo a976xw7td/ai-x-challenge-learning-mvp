@@ -3,6 +3,10 @@
 // The bus constraint (§5.0) is enforced here: agent channels MUST use publish(),
 // never bypass the bus to write business tables directly.
 //
+// AGENT_CN.md §8.1: Every message must carry routing metadata + protocol marking.
+// The bus adapter stamps protocol and origin hop in publish() so business code
+// never hardcodes protocol values. Forward/deliver hops are added by the consumer.
+//
 // Usage:
 //   import { busAdapter } from "./bus-adapter";
 //   await busAdapter.publish(envelope);
@@ -12,6 +16,9 @@ import { getRedis } from "./redis";
 // ---- Abstract interface ----
 
 export interface BusAdapter {
+  /** Protocol identifier (e.g. 'redis-stream/v1', 'hermes-acp/v1'). */
+  readonly protocolId: string;
+
   /** Publish an envelope to the bus. Returns the message ID. */
   publish(envelope: MessageEnvelope): Promise<string | null>;
 
@@ -27,9 +34,33 @@ export interface BusAdapter {
   isAvailable(): boolean;
 }
 
+// ---- Route stamping helper (§8.1) ----
+
+function stampRoute(envelope: MessageEnvelope, protocolId: string): MessageEnvelope {
+  const now = new Date().toISOString();
+  const existing = (envelope as Record<string, unknown>);
+
+  const originHop = {
+    agent_id: envelope.from_agent,
+    action: "origin",
+    protocol: protocolId,
+    ts: now,
+  };
+
+  const existingRoute = existing["route"] as Array<unknown> | undefined;
+  const route = existingRoute ? [...existingRoute, originHop] : [originHop];
+
+  return {
+    ...envelope,
+    protocol: protocolId,
+    route,
+  } as MessageEnvelope;
+}
+
 // ---- Redis Stream adapter ----
 
 class RedisBusAdapter implements BusAdapter {
+  readonly protocolId = "redis-stream/v1";
   private readonly STREAM = "nseap:messages";
   private readonly MAX_LEN = 10_000;
 
@@ -42,9 +73,12 @@ class RedisBusAdapter implements BusAdapter {
     console.log("[bus:redis] publish called, redis available:", !!redis);
     if (!redis) return null;
 
+    // AGENT_CN.md §8.1: stamp protocol + origin hop before serializing
+    const stamped = stampRoute(envelope, this.protocolId);
+
     return redis.xadd(
       this.STREAM, "MAXLEN", "~", this.MAX_LEN, "*",
-      "envelope", JSON.stringify(envelope),
+      "envelope", JSON.stringify(stamped),
     );
   }
 
@@ -150,6 +184,7 @@ class RedisBusAdapter implements BusAdapter {
 // ---- Hermes/OpenClaw stub adapter (P3) ----
 
 class HermesBusAdapter implements BusAdapter {
+  readonly protocolId = "hermes-acp/v1";
   private _available = false;
 
   isAvailable(): boolean {
@@ -199,6 +234,7 @@ function getAdapter(): BusAdapter {
 }
 
 export const busAdapter: BusAdapter = {
+  get protocolId() { return getAdapter().protocolId; },
   publish: (envelope) => getAdapter().publish(envelope),
   subscribe: (group, consumer, handler, signal) => getAdapter().subscribe(group, consumer, handler, signal),
   isAvailable: () => getAdapter().isAvailable(),

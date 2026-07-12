@@ -12,6 +12,33 @@ export const ServicePrincipalSchema = z.object({
 
 export type ServicePrincipal = z.infer<typeof ServicePrincipalSchema>;
 
+// ---- Manifest Owner (AGENT_CN.md §2.1) ----
+
+export const ManifestOwnerSchema = z.object({
+  owner_type: z.enum(["student", "teacher", "system"]),
+  owner_id: z.string().min(1),
+});
+
+export type ManifestOwner = z.infer<typeof ManifestOwnerSchema>;
+
+// ---- Route hop + routing extension (AGENT_CN.md §8.1) ----
+
+export const RouteHopSchema = z.object({
+  agent_id: z.string(),
+  action: z.enum(["origin", "forward", "deliver"]),
+  protocol: z.string(), // e.g. 'redis-stream/v1'
+  ts: z.string(),
+});
+
+export type RouteHop = z.infer<typeof RouteHopSchema>;
+
+export const RoutingExtensionSchema = z.object({
+  protocol: z.string(),
+  route: z.array(RouteHopSchema).min(1).max(20),
+});
+
+export type RoutingExtension = z.infer<typeof RoutingExtensionSchema>;
+
 // ---- Relationship (§3.2) ----
 
 export const RelationshipTypeSchema = z.enum([

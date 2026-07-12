@@ -63,5 +63,9 @@
       "channel_type": "web",
       "channel_id": "webapp"
     }
+  ],
+  "owner": { "owner_type": "system", "owner_id": "nseap-platform" },
+  "memory_binding": [
+    { "ontology_path": "nseap:memory:agent:review-task-agent-001" }
   ]
 }

@@ -1,6 +1,6 @@
 // Message bus initialization — called once at server startup (T19 + T20).
 // Registers message handlers and starts Redis Stream consumers.
-import { registerHandler, handleMessage } from "./message-handler";
+import { registerHandler, handleMessage, appendRouteHop } from "./message-handler";
 import { startConsumer } from "./redis-stream";
 import { busAdapter } from "./bus-adapter";
 import { updateTaskStatus } from "./tasks";
@@ -112,14 +112,21 @@ export async function initMessageBus(): Promise<void> {
   // P3 T1: Subscribe via bus adapter (transport-agnostic)
   // BUGFIX: await consumer startup promises so failures are visible at boot,
   // not silently lost in background.
+  //
+  // AGENT_CN.md §8.1: Each consumer stamps forward hop before handler,
+  // deliver hop after success. This gives full route traceability.
   const subConsumer = busAdapter.subscribe("submission-task-agent", "submission-consumer-1", async (env, id) => {
-    await handleMessage(env);
+    const forwarded = appendRouteHop(env, "forward");
+    await handleMessage(forwarded);
+    // On success, the message was fully processed — no deliver hop needed
+    // because we ACK right after handler returns (done in bus-adapter).
   }, abortController.signal).catch((err) => {
     console.error("[bus] Submission consumer crashed:", err);
   });
 
   const reviewConsumer = busAdapter.subscribe("review-task-agent", "review-consumer-1", async (env, id) => {
-    await handleMessage(env);
+    const forwarded = appendRouteHop(env, "forward");
+    await handleMessage(forwarded);
   }, abortController.signal).catch((err) => {
     console.error("[bus] Review consumer crashed:", err);
   });

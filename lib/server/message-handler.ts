@@ -49,6 +49,36 @@ async function checkRateLimit(sp: { person: string; role: string }): Promise<boo
 
 // ---- Main entry point ----
 
+/** Append a route hop to the envelope (AGENT_CN.md §8.1).
+ *  Called by the consumer before/after handler dispatch. */
+export function appendRouteHop(
+  envelope: MessageEnvelope,
+  action: "forward" | "deliver",
+): MessageEnvelope {
+  const existing = envelope as Record<string, unknown>;
+  const route = (existing["route"] as Array<Record<string, unknown>>) || [];
+  const protocol = (existing["protocol"] as string) || "unknown";
+
+  // Prevent runaway loops
+  if (route.length >= 20) {
+    console.warn(`[handler] Route hop limit reached for ${envelope.message_id}`);
+    return envelope;
+  }
+
+  return {
+    ...envelope,
+    route: [
+      ...route,
+      {
+        agent_id: envelope.to_agent,
+        action,
+        protocol,
+        ts: new Date().toISOString(),
+      },
+    ],
+  } as MessageEnvelope;
+}
+
 export async function handleMessage(envelope: MessageEnvelope): Promise<void> {
   // T21: Service Principal trust check
   const fromSP = agentToSP(envelope.from_agent);

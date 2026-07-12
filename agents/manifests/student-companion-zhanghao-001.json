@@ -26,5 +26,9 @@
   "channel_bindings": [
     { "channel_type": "feishu", "channel_id": "bot-student-zhanghao" },
     { "channel_type": "web", "channel_id": "webapp" }
+  ],
+  "owner": { "owner_type": "student", "owner_id": "zhanghao" },
+  "memory_binding": [
+    { "ontology_path": "nseap:memory:student:zhanghao" }
   ]
 }
