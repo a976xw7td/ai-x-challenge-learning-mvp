@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     }
 
     // Sync fallback: webapp only (agent channels blocked above)
-    const result = await submitChallengeProject(input);
+    const result = await submitChallengeProject(input, isAgentChannel ? principal.person : undefined);
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });
   } catch (error) {
     return NextResponse.json(

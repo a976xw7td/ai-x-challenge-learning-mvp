@@ -144,14 +144,19 @@ async function createSubmissionWithAgentFields(
   }
 }
 
-export async function submitChallengeProject(input: SubmissionInput): Promise<WorkflowResult> {
+export async function submitChallengeProject(
+  input: SubmissionInput,
+  callerAgentId?: string,
+): Promise<WorkflowResult> {
   const audit = new AuditTrail();
   const dedupeKey = `${input.studentId}:${input.challengeId}:${input.githubRepoUrl}`;
+  const fromAgent = callerAgentId || WEBAPP_FALLBACK_STUDENT_AGENT;
+
   try {
-    // 1. Student Companion (webapp fallback) constructs the submission request
+    // 1. Student Companion constructs the submission request
     const envelope = buildEnvelope({
       messageType: "submission_request",
-      fromAgent: WEBAPP_FALLBACK_STUDENT_AGENT,
+      fromAgent,  // AGENT_CN.md S2.4: actual caller identity, not hardcoded
       toAgent: SUBMISSION_TASK_AGENT,
       payload: { student_id: input.studentId, challenge_id: input.challengeId, github_repo: input.githubRepoUrl },
       auditId: audit.traceId,
@@ -282,7 +287,7 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
         submitted_at: new Date().toISOString(),
       },
       {
-        submitted_by_agent_id: WEBAPP_FALLBACK_STUDENT_AGENT,
+        submitted_by_agent_id: fromAgent,
         processed_by_agent_id: SUBMISSION_TASK_AGENT,
         admin_identity_mode: ADMIN_IDENTITY_MODE,
         submission_request_id: envelope.request_id,
@@ -342,16 +347,15 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
       enqueue(audit.entries);
       flush();
       // T8: notify student of submission success (with AI score)
-      notifyStudent(input.studentId,
+      const notifyResult = await notifyStudent(input.studentId,
         `✅ 提交成功！你的项目「${input.projectTitle}」已提交。\nAI 初评得分：${aiEvaluation.scoreTotal}/100\n评语：${aiEvaluation.feedback}`
-      ).then((result) => {
-        console.log("[T16 debug] notifyStudent result:", JSON.stringify(result));
-        if (!result.ok) {
-          const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
-          enqueue([entry]);
-          flush();
-        }
-      });
+      );
+      console.log("[T16 debug] notifyStudent result:", JSON.stringify(notifyResult));
+      if (!notifyResult.ok) {
+        const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: notifyResult.error });
+        enqueue([entry]);
+        flush();
+      }
       return {
         ok: true,
         submissionId: submission.submission_id,
@@ -384,14 +388,12 @@ export async function submitChallengeProject(input: SubmissionInput): Promise<Wo
     });
     // T8: notify student of submission failure
     const errMsg = error instanceof Error ? error.message : "未知错误";
-    notifyStudent(input.studentId, `❌ 提交失败：${errMsg}`)
-      .then((result) => {
-        if (!result.ok) {
-          const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
-          enqueue([entry]);
-          flush();
-        }
-      });
+    const notifyResult = await notifyStudent(input.studentId, `❌ 提交失败：${errMsg}`);
+    if (!notifyResult.ok) {
+      const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: notifyResult.error });
+      enqueue([entry]);
+      flush();
+    }
     enqueue(audit.entries);
     flush();
     return {

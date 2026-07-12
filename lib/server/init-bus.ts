@@ -19,7 +19,8 @@ async function handleSubmissionRequest(envelope: MessageEnvelope): Promise<void>
     const { submitChallengeProject } = await import("./workflow");
     const input = envelope.payload as unknown as SubmissionInput;
 
-    const result = await submitChallengeProject(input);
+    // Pass the actual caller agent ID from the envelope
+    const result = await submitChallengeProject(input, envelope.from_agent);
 
     await updateTaskStatus(taskId, result.ok ? "completed" : "failed", {
       ok: result.ok,
