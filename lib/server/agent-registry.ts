@@ -5,6 +5,14 @@ import { getRedis } from "./redis";
 import type { ServicePrincipal } from "../schemas/envelope-v2.schema";
 
 const REGISTRY_PREFIX = "agent:registry:";
+
+/** System agent IDs protected from hijack/unregistration by non-admin callers. */
+export const RESERVED_AGENT_IDS = new Set([
+  "submission-task-agent-001",
+  "review-task-agent-001",
+  "student-companion-webapp-fallback",
+  "teacher-companion-webapp-fallback",
+]);
 const REGISTRY_TTL = 3600; // agents must heartbeat within 1 hour
 
 export interface AgentRegistration {
