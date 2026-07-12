@@ -146,6 +146,10 @@ async function batchWriteWithRetry(batch: AuditLog[]): Promise<void> {
 export function enqueue(entries: AuditLog[]): void {
   if (!entries.length) return;
   outbox.push(...entries);
+  // Start flush timer if not already running (FLUSH_INTERVAL_MS was dead code before)
+  if (!flushTimer) {
+    flushTimer = setTimeout(() => { flushTimer = null; flush(); }, FLUSH_INTERVAL_MS);
+  }
 }
 
 /** Force-flush the outbox immediately (used at workflow end). Fire-and-forget. */

@@ -120,6 +120,9 @@ ${actionText}
     flush();
 
     // AGENT_CN.md §3.3: update ontology memory after teacher review.
+    // TODO: last_feedback.from should be the actual reviewer agent_id, not
+    // hardcoded WEBAPP_FALLBACK_TEACHER_AGENT. Pass callerAgentId through
+    // TeacherReviewInput when WorkBuddy/Hermes teacher agents are active.
     void updateStudentMemory(input.studentId, {
       learning_state: "reviewed",
       last_feedback: {
