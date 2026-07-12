@@ -116,7 +116,6 @@ export function buildEnvelope(params: {
     from_agent: params.fromAgent,
     to_agent: params.toAgent,
     message_type: params.messageType,
-    target_resource: params.payload?.challenge_id as string || params.payload?.submissionId as string || params.messageType,
     timestamp,
     payload: params.payload,
     audit_trace_pointer: params.auditId,
@@ -128,9 +127,9 @@ export function buildEnvelope(params: {
     return MessageEnvelopeSchema.parse(raw);
   } catch {
     // Extended type: strip message_type for schema check, then restore
-    const { message_type, target_resource, ...rest } = raw;
-    const base = MessageEnvelopeSchema.omit({ message_type: true }).parse({ ...rest, target_resource });
-    return { ...base, message_type, target_resource } as MessageEnvelope;
+    const { message_type, ...rest } = raw;
+    const base = MessageEnvelopeSchema.omit({ message_type: true }).parse(rest);
+    return { ...base, message_type } as MessageEnvelope;
   }
 }
 
