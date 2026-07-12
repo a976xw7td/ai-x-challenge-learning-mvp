@@ -39,6 +39,7 @@ class RedisBusAdapter implements BusAdapter {
 
   async publish(envelope: MessageEnvelope): Promise<string | null> {
     const redis = getRedis();
+    console.log("[bus:redis] publish called, redis available:", !!redis);
     if (!redis) return null;
 
     return redis.xadd(
