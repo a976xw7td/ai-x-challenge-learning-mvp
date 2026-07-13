@@ -1,7 +1,7 @@
 // principal.ts — Server-side Principal resolution (§3.5)
 // Supports: session cookie (webapp) + API key (Hermes/WorkBuddy agent channels)
 // Principal is ONLY resolved server-side; clients never self-report role.
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { cookies, headers } from "next/headers";
 import { optionalEnv } from "./env";
 import { resolveAgentApiKey, resolveStudentApiKey } from "./agent-auth";
@@ -23,8 +23,10 @@ export function signToken(payload: Record<string, string>): string {
   const secret = getSecret();
   if (!secret) throw new Error("SESSION_SECRET not configured");
   const data = JSON.stringify(payload);
-  const hmac = createHmac("sha256", secret).update(data).digest("hex");
-  return Buffer.from(JSON.stringify({ data, hmac })).toString("base64url");
+  const exp = String(Math.floor(Date.now() / 1000) + 86400); // 24h
+  const payloadWithExp = JSON.stringify({ ...payload, exp });
+  const hmac = createHmac("sha256", secret).update(payloadWithExp).digest("hex");
+  return Buffer.from(JSON.stringify({ data: payloadWithExp, hmac })).toString("base64url");
 }
 
 export function verifyToken(token: string): Record<string, string> | null {
@@ -33,9 +35,17 @@ export function verifyToken(token: string): Record<string, string> | null {
     if (!secret) return null;
     const raw = Buffer.from(token, "base64url").toString("utf-8");
     const { data, hmac } = JSON.parse(raw);
+    // T07: timing-safe comparison
     const expectedHmac = createHmac("sha256", secret).update(data).digest("hex");
-    if (hmac !== expectedHmac) return null;
-    return JSON.parse(data);
+    const hmacBuf = Buffer.from(hmac, "hex");
+    const expectedBuf = Buffer.from(expectedHmac, "hex");
+    if (hmacBuf.length !== expectedBuf.length) return null;
+    if (!timingSafeEqual(hmacBuf, expectedBuf)) return null;
+    const payload = JSON.parse(data);
+    // T07: check expiration
+    if (payload.exp && Date.now() > Number(payload.exp) * 1000) return null;
+    delete payload.exp;
+    return payload;
   } catch {
     return null;
   }
@@ -93,15 +103,28 @@ export async function getAgentPrincipal(): Promise<ServicePrincipal | null> {
   return null;
 }
 
-export function determineRole(studentId: string, studentsRole?: string): string {
+export async function determineRole(personId: string): Promise<string> {
+  // T06: Check Admins table first, then Teachers, then Students
+  const { getAdminById, getTeacherById, getStudentById } = await import("./feishu");
+
+  try {
+    const admin = await getAdminById(personId);
+    if (admin) return admin.role || "admin";
+  } catch { /* table might not exist yet */ }
+
+  try {
+    const teacher = await getTeacherById(personId);
+    if (teacher) return teacher.role || "teacher";
+  } catch { /* table might not exist yet */ }
+
+  // Fallback to TEACHER_IDS env var (deprecated, kept for backward compat)
   const teacherIds = optionalEnv("TEACHER_IDS")
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
-  if (teacherIds.includes(studentId.toLowerCase())) return "teacher";
-
-  if (studentsRole && ["teacher", "admin"].includes(studentsRole.toLowerCase())) {
-    return studentsRole.toLowerCase();
+  if (teacherIds.includes(personId.toLowerCase())) {
+    console.warn("[principal] TEACHER_IDS env var is deprecated. Use Teachers Feishu table instead.");
+    return "teacher";
   }
 
   return "student";

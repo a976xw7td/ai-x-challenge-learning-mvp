@@ -1,7 +1,7 @@
-// GET /api/auth/me — Read current Principal + student info from session
+// GET /api/auth/me — Read current Principal + user info from session (T07)
 import { NextResponse } from "next/server";
 import { getPrincipal } from "@/lib/server/principal";
-import { getStudentById } from "@/lib/server/feishu";
+import { getStudentById, getTeacherById, getAdminById } from "@/lib/server/feishu";
 
 export async function GET() {
   const principal = await getPrincipal();
@@ -9,21 +9,32 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "未登录" }, { status: 401 });
   }
 
-  // Look up student info (name, api_key) from Feishu
+  // Look up user info from appropriate table
   let name: string | undefined;
-  let api_key: string | undefined;
+  let class_id: string | undefined;
   try {
-    const student = await getStudentById(principal.person);
-    name = student.name;
-    api_key = student.api_key || undefined;
+    if (principal.role === "student" || principal.role === "agent") {
+      const student = await getStudentById(principal.person);
+      name = student.name;
+      class_id = student.class_id;
+    } else if (principal.role === "teacher") {
+      const teacher = await getTeacherById(principal.person);
+      if (teacher) name = teacher.name;
+    } else if (principal.role === "admin") {
+      const admin = await getAdminById(principal.person);
+      if (admin) name = admin.name;
+    }
   } catch {
-    // Student not found or Feishu unavailable — use principal data only
+    // Not found or table unavailable — use principal data only
   }
 
+  // T07/T08: api_key is NEVER returned in /me or login responses
   return NextResponse.json({
     ok: true,
-    ...principal,
+    person: principal.person,
+    role: principal.role,
+    org: principal.org,
     name,
-    api_key,
+    class_id,
   });
 }

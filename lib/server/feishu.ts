@@ -1,6 +1,6 @@
 import { requireEnv } from "./env";
 import { makeId } from "./ids";
-import type { Challenge, FeishuRecord, PortfolioItem, Student } from "./types";
+import type { Challenge, FeishuRecord, PortfolioItem, Student, Teacher, Admin } from "./types";
 
 type FeishuListResponse = {
   code: number;
@@ -216,6 +216,7 @@ function normalizeStudent(record: { record_id: string; fields: Record<string, un
     email: asString(field(f, "email")),
     feishu_open_id: asString(field(f, "feishu_open_id")),
     api_key: asString(field(f, "api_key")),
+    api_key_hash: asString(f["API Key Hash"] ?? f["api_key_hash"]),
     class_id: asString(field(f, "class_id")),
     github_username: asString(field(f, "github_username")),
     github_profile_url: asString(field(f, "github_profile_url")),
@@ -226,7 +227,11 @@ function normalizeStudent(record: { record_id: string; fields: Record<string, un
     ai_x_direction: asString(field(f, "ai_x_direction")),
     status: asString(field(f, "status")),
     portfolio_url: asString(field(f, "portfolio_url")),
-  };
+    // T06: role field (if present in table)
+    ...(f["角色"] !== undefined || f["role"] !== undefined
+      ? { role: asString(f["角色"] ?? f["role"]) as string }
+      : {}),
+  } as FeishuRecord<Student>;
 }
 
 function normalizeChallenge(record: { record_id: string; fields: Record<string, unknown> }): FeishuRecord<Challenge> {
@@ -311,6 +316,61 @@ export async function getStudentById(studentId: string) {
   const student = students.find((item) => item.student_id === studentId);
   if (!student) throw new Error(`Student not found: ${studentId}`);
   return student;
+}
+
+// ---- Teachers (T06) ----
+
+function normalizeTeacher(record: { record_id: string; fields: Record<string, unknown> }): FeishuRecord<Teacher> {
+  const f = record.fields;
+  return {
+    recordId: record.record_id,
+    teacher_id: asString(f["teacher_id"] ?? f["教师ID"]),
+    name: asString(f["姓名"] ?? f["name"]),
+    email: asString(f["email"] ?? f["邮箱"]),
+    role: asString(f["角色"] ?? f["role"]),
+    api_key_hash: asString(f["API Key Hash"] ?? f["api_key_hash"]),
+    class_id: asString(f["班级ID"] ?? f["class_id"]),
+    status: asString(f["状态"] ?? f["status"]),
+  };
+}
+
+export async function getTeachers(): Promise<Teacher[]> {
+  const tableId = process.env.FEISHU_TEACHERS_TABLE_ID;
+  if (!tableId) return [];
+  const rows = await listRecords(tableId);
+  return rows.map(normalizeTeacher);
+}
+
+export async function getTeacherById(teacherId: string): Promise<Teacher | null> {
+  const teachers = await getTeachers();
+  return teachers.find((t) => t.teacher_id === teacherId) || null;
+}
+
+// ---- Admins (T06) ----
+
+function normalizeAdmin(record: { record_id: string; fields: Record<string, unknown> }): FeishuRecord<Admin> {
+  const f = record.fields;
+  return {
+    recordId: record.record_id,
+    admin_id: asString(f["admin_id"] ?? f["管理员ID"]),
+    name: asString(f["姓名"] ?? f["name"]),
+    email: asString(f["email"] ?? f["邮箱"]),
+    role: asString(f["角色"] ?? f["role"]),
+    api_key_hash: asString(f["API Key Hash"] ?? f["api_key_hash"]),
+    status: asString(f["状态"] ?? f["status"]),
+  };
+}
+
+export async function getAdmins(): Promise<Admin[]> {
+  const tableId = process.env.FEISHU_ADMINS_TABLE_ID;
+  if (!tableId) return [];
+  const rows = await listRecords(tableId);
+  return rows.map(normalizeAdmin);
+}
+
+export async function getAdminById(adminId: string): Promise<Admin | null> {
+  const admins = await getAdmins();
+  return admins.find((a) => a.admin_id === adminId) || null;
 }
 
 export async function updateStudent(recordId: string, fields: Record<string, unknown>): Promise<void> {

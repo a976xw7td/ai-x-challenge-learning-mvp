@@ -8,6 +8,7 @@ export type Student = {
   email?: string;
   feishu_open_id?: string;
   api_key?: string;
+  api_key_hash?: string;
   class_id?: string;
   github_username?: string;
   github_profile_url?: string;
@@ -80,6 +81,7 @@ export type AiEvaluation = {
   suggestions: string;
   feedback: string;
   fallback?: boolean;
+  fallbackReason?: string;
 };
 
 export type PortfolioDescription = {
@@ -115,5 +117,24 @@ export type WorkflowResult = {
   aiEvaluation?: AiEvaluation;
   error?: string;
   auditTrail?: unknown[];
+};
+
+export type Teacher = {
+  teacher_id: string;
+  name: string;
+  email?: string;
+  role?: string;
+  api_key_hash?: string;
+  class_id?: string;
+  status?: string;
+};
+
+export type Admin = {
+  admin_id: string;
+  name: string;
+  email?: string;
+  role?: string;
+  api_key_hash?: string;
+  status?: string;
 };
 

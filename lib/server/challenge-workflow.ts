@@ -45,7 +45,7 @@ export async function publishChallenge(input: PublishChallengeInput): Promise<Pu
       error_trace: `Missing fields: ${missing.join(", ")}`,
     });
     enqueue(audit.entries);
-    flush();
+    await flush();
     return {
       ok: false,
       error: "缺少必填项",
@@ -97,16 +97,16 @@ export async function publishChallenge(input: PublishChallengeInput): Promise<Pu
 简介：${input.brief || "暂无"}
 截止时间：${input.deadline}
 交付物：${input.deliverables}
-请同学们及时查看并提交！`).then((result) => {
+请同学们及时查看并提交！`).then(async (result) => {
       if (!result.ok && !result.skipped) {
         const entry = audit.log(WEBAPP_FALLBACK_TEACHER_AGENT, "notify_failed", "group", { error_trace: result.error });
         enqueue([entry]);
-        flush();
+        await flush();
       }
     });
 
     enqueue(audit.entries);
-    flush();
+    await flush();
     return {
       ok: true,
       challengeId: challenge.challenge_id,
@@ -117,7 +117,7 @@ export async function publishChallenge(input: PublishChallengeInput): Promise<Pu
       error_trace: error instanceof Error ? error.message : String(error),
     });
     enqueue(audit.entries);
-    flush();
+    await flush();
     return {
       ok: false,
       error: error instanceof Error ? error.message : "发布失败",

@@ -33,7 +33,12 @@ export async function teacherFinalizeReview(input: TeacherReviewInput): Promise<
   const audit = new AuditTrail();
 
   try {
-    // 1. Construct manual_review_adjustment envelope (extended type, not in Team3 enum)
+    // 0. Validate score (defense-in-depth)
+    if (!Number.isFinite(input.score) || input.score < 0 || input.score > 100) {
+      return { ok: false, error: "分数必须在 0-100 之间" };
+    }
+
+    // 1. Construct manual_review_adjustment envelope
     const envelope = buildEnvelope({
       messageType: "manual_review_adjustment",
       fromAgent: WEBAPP_FALLBACK_TEACHER_AGENT,
@@ -108,16 +113,16 @@ export async function teacherFinalizeReview(input: TeacherReviewInput): Promise<
 ${actionText}
 分数：${input.score}/100
 评语：${input.feedback}`
-    ).then((result) => {
+    ).then(async (result) => {
       if (!result.ok) {
         const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
         enqueue([entry]);
-        flush();
+        await flush();
       }
     });
 
     enqueue(audit.entries);
-    flush();
+    await flush();
 
     // AGENT_CN.md §3.3: update ontology memory after teacher review.
     // TODO: last_feedback.from should be the actual reviewer agent_id, not
@@ -142,7 +147,7 @@ ${actionText}
       error_trace: error instanceof Error ? error.message : String(error),
     });
     enqueue(audit.entries);
-    flush();
+    await flush();
     return {
       ok: false,
       error: error instanceof Error ? error.message : "评审失败",

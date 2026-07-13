@@ -1,10 +1,7 @@
 // Agent API Key authentication — P2 agent channel auth (AGENT_CN.md §3.5).
-// Agent channels (Hermes/WorkBuddy) use pre-shared API keys stored in env.
-// The server maps API key → Service Principal for authorization.
-//
-// Keys are stored as comma-separated pairs in env:
-//   AGENT_API_KEYS=agent_id:key1,agent_id:key2
-// Example: AGENT_API_KEYS=teacher-companion-workbuddy:wb-secret-xxx,student-companion-zhanghao-001:zh-secret-yyy
+// T08: Keys are now hashed with SHA-256; plaintext only returned once at generation.
+// Supports key rotation with 30-day grace period for previous hash.
+import { randomBytes, createHash } from "crypto";
 import { optionalEnv } from "./env";
 import type { ServicePrincipal } from "../schemas/envelope-v2.schema";
 import { agentToSP } from "./service-principal";
@@ -36,38 +33,61 @@ function loadKeyMap(): Map<string, string> {
 
 // ---- Principal resolution ----
 
-/**
- * Resolve an API key to a Service Principal.
- * Checks: 1) hardcoded env keys (WorkBuddy/Hermes), 2) Students table keys
- */
 export function resolveAgentApiKey(apiKey: string): ServicePrincipal | null {
-  // 1. Check hardcoded keys (env)
   const keyMap = loadKeyMap();
   const agentId = keyMap.get(apiKey);
   if (agentId) return agentToSP(agentId);
-
   return null;
 }
 
 /**
- * Resolve from Students table. Must be called with await since it hits Feishu.
- * Returns { person: "student_<studentId>", org: "elite20", role: "agent" }
+ * T08: Resolve from Students table using hash comparison.
+ * Caches results for 60s to avoid full table scans per request.
  */
-export async function resolveStudentApiKey(apiKey: string): Promise<ServicePrincipal | null> {
-  const keyMap = loadKeyMap();
-  if (keyMap.has(apiKey)) return null; // already handled by resolveAgentApiKey
+const _studentKeyCache = new Map<string, { sp: ServicePrincipal; ts: number }>();
+const STUDENT_KEY_CACHE_TTL = 60_000; // 60s
 
-  // Check Students table
+export async function resolveStudentApiKey(apiKey: string): Promise<ServicePrincipal | null> {
+  if (!apiKey) return null;
+
+  const keyHash = hashApiKey(apiKey);
+
+  // Check cache first
+  const cached = _studentKeyCache.get(keyHash);
+  if (cached && Date.now() - cached.ts < STUDENT_KEY_CACHE_TTL) {
+    return cached.sp;
+  }
+
   try {
     const { getStudents } = await import("./feishu");
     const students = await getStudents();
-    const match = students.find((s) => s.api_key === apiKey);
-    if (match) {
-      return {
-        person: `student-companion-${match.student_id}`,
-        org: "elite20",
-        role: "agent",
-      };
+    for (const s of students) {
+      // Check current hash
+      if (s.api_key_hash && s.api_key_hash === keyHash) {
+        const sp: ServicePrincipal = {
+          person: `student-companion-${s.student_id}`,
+          org: "elite20",
+          role: "agent",
+        };
+        _studentKeyCache.set(keyHash, { sp, ts: Date.now() });
+        return sp;
+      }
+      // Check previous hash (rotated, within 30-day grace)
+      if ((s as Record<string, unknown>).api_key_hash_prev === keyHash) {
+        const rotatedAt = (s as Record<string, unknown>).api_key_rotated_at as string | undefined;
+        if (rotatedAt) {
+          const daysSinceRotation = (Date.now() - new Date(rotatedAt).getTime()) / 86400000;
+          if (daysSinceRotation <= 30) {
+            const sp: ServicePrincipal = {
+              person: `student-companion-${s.student_id}`,
+              org: "elite20",
+              role: "agent",
+            };
+            _studentKeyCache.set(keyHash, { sp, ts: Date.now() });
+            return sp;
+          }
+        }
+      }
     }
   } catch {
     // Feishu unavailable — skip
@@ -75,31 +95,34 @@ export async function resolveStudentApiKey(apiKey: string): Promise<ServicePrinc
   return null;
 }
 
-/**
- * Extract and validate API key from request headers.
- * Looks for: x-api-key or Authorization: Bearer <key>
- */
+// ---- Key generation & hashing (T08) ----
+
+/** Generate a cryptographically secure API key. */
+export function generateApiKey(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const bytes = randomBytes(48); // 48 bytes → 64 chars base62
+  let result = "";
+  for (let i = 0; i < 48; i++) {
+    result += chars[bytes[i] % chars.length];
+  }
+  return `nseap-${result.slice(0, 16)}-${result.slice(16, 32)}-${result.slice(32, 48)}`;
+}
+
+/** Hash an API key with SHA-256 for storage comparison. */
+export function hashApiKey(key: string): string {
+  return createHash("sha256").update(key).digest("hex");
+}
+
+// ---- Headers extraction ----
+
 export function extractApiKey(request: Request): string | null {
-  // Try x-api-key header first
   const xKey = request.headers.get("x-api-key");
   if (xKey) return xKey.trim();
 
-  // Try Bearer token
   const auth = request.headers.get("authorization");
   if (auth?.startsWith("Bearer ")) {
     return auth.slice(7).trim();
   }
 
   return null;
-}
-
-// ---- Key generation helper ----
-
-/** Generate a random API key for agent use. Run once and store in .env.local. */
-export function generateApiKey(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  const segments = [16, 16, 16].map((len) =>
-    Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join("")
-  );
-  return `nseap-${segments.join("-")}`;
 }

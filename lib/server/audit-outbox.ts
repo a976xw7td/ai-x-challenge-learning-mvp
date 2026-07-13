@@ -152,17 +152,17 @@ export function enqueue(entries: AuditLog[]): void {
   }
 }
 
-/** Force-flush the outbox immediately (used at workflow end). Fire-and-forget. */
-export function flush(): void {
+/** Force-flush the outbox immediately (used at workflow end). Returns a Promise for callers that want to await. */
+export function flush(): Promise<void> {
   if (flushTimer) {
     clearTimeout(flushTimer);
     flushTimer = null;
   }
-  if (!outbox.length) return;
+  if (!outbox.length) return Promise.resolve();
 
   const batch = outbox.splice(0, outbox.length);
-  // Fire-and-forget: do NOT await — audit persistence must not block business response
-  batchWriteWithRetry(batch).catch((err) => {
+  // Fire-and-forget by default, but callers can await for ordering
+  return batchWriteWithRetry(batch).catch((err) => {
     console.error("[audit-outbox] unexpected flush error:", err);
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   User,
@@ -18,6 +18,7 @@ import {
   Copy,
   Eye,
   EyeOff,
+  RefreshCw,
 } from "lucide-react";
 import {
   fetchCurrentUser,
@@ -28,12 +29,17 @@ import {
 import type { PortfolioItem } from "@/lib/data";
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<{ person: string; role: string; name?: string; api_key?: string } | null>(null);
+  const [user, setUser] = useState<{ person: string; role: string; name?: string } | null>(null);
   const [submissions, setSubmissions] = useState<SubmissionListItem[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // T08: API Key management — key only shown after generation, not from /me
+  const [apiKey, setApiKey] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [keyError, setKeyError] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -46,7 +52,6 @@ export default function ProfilePage() {
           person: userRes.person,
           role: userRes.role || "student",
           name: userRes.name,
-          api_key: (userRes as Record<string, unknown>).api_key as string | undefined,
         });
       }
       if (subsRes.ok && subsRes.submissions) {
@@ -59,6 +64,67 @@ export default function ProfilePage() {
       setLoading(false);
     });
   }, []);
+
+  // T08: Generate / rotate API key (plaintext returned only once)
+  const handleGenerateKey = useCallback(async () => {
+    setGenerating(true);
+    setKeyError("");
+    try {
+      const res = await fetch("/api/auth/api-key", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setApiKey(data.api_key);
+        setShowKey(true);
+      } else {
+        setKeyError(data.error || "生成失败");
+      }
+    } catch {
+      setKeyError("网络错误，请重试");
+    }
+    setGenerating(false);
+  }, []);
+
+  const handleDownloadConfig = useCallback(() => {
+    if (!apiKey || !user) return;
+    const config = {
+      agent_id: `student-companion-${user.person}`,
+      api_key: apiKey,
+      server: window.location.origin,
+      auth: {
+        method: "header",
+        header_name: "x-api-key",
+      },
+      endpoints: {
+        submit: { method: "POST", path: "/api/hermes", description: "提交作业" },
+        health: { method: "GET", path: "/api/health", description: "健康检查" },
+        agents: { method: "GET", path: "/api/agents", description: "Agent 列表" },
+      },
+      message_types: {
+        submission_request: {
+          description: "提交作业",
+          payload: {
+            studentId: { type: "string", required: true, description: "学号" },
+            challengeId: { type: "string", required: true, description: "Challenge ID" },
+            projectTitle: { type: "string", required: true, description: "项目标题" },
+            projectSummary: { type: "string", required: true, description: "项目简介" },
+            githubRepoUrl: { type: "string", required: true, description: "GitHub 仓库地址" },
+            aarText: { type: "string", required: true, description: "AAR 复盘" },
+            selfEvaluationText: { type: "string", required: true, description: "自评" },
+            isPublic: { type: "boolean", required: false, description: "是否公开" },
+          },
+          transport: "Redis Stream (消息总线，异步处理)",
+        },
+      },
+      protocol: "NSEAP Agent Protocol v1.0 / P3394-compatible",
+    };
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `hermes-config-${user.person}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [apiKey, user]);
 
   if (loading) {
     return (
@@ -103,84 +169,78 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* P2: API Key — one per student, auto-generated on first login */}
-      {user?.api_key && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6">
-          <div className="flex items-center gap-2 mb-3">
-            <Key className="h-5 w-5 text-amber-500" />
-            <h2 className="text-base font-semibold text-gray-900">API Key</h2>
-            <span className="text-xs text-gray-400">用于 Hermes / 命令行提交</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700 font-mono break-all select-all">
-              {showKey ? user.api_key : "•".repeat(48)}
-            </code>
-            <button
-              onClick={() => setShowKey(!showKey)}
-              className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
-              title={showKey ? "隐藏" : "显示"}
-            >
-              {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-            <button
-              onClick={() => { navigator.clipboard.writeText(user.api_key!); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-              className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
-              title="复制"
-            >
-              {copied ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-            </button>
-            <button
-              onClick={() => {
-                const config = {
-                  agent_id: `student-companion-${user.person}`,
-                  api_key: user.api_key,
-                  server: window.location.origin,
-                  auth: {
-                    method: "header",
-                    header_name: "x-api-key"
-                  },
-                  endpoints: {
-                    submit: { method: "POST", path: "/api/hermes", description: "提交作业" },
-                    health: { method: "GET", path: "/api/health", description: "健康检查" },
-                    agents: { method: "GET", path: "/api/agents", description: "Agent 列表" }
-                  },
-                  message_types: {
-                    submission_request: {
-                      description: "提交作业",
-                      payload: {
-                        studentId: { type: "string", required: true, description: "学号" },
-                        challengeId: { type: "string", required: true, description: "Challenge ID" },
-                        projectTitle: { type: "string", required: true, description: "项目标题" },
-                        projectSummary: { type: "string", required: true, description: "项目简介" },
-                        githubRepoUrl: { type: "string", required: true, description: "GitHub 仓库地址" },
-                        aarText: { type: "string", required: true, description: "AAR 复盘" },
-                        selfEvaluationText: { type: "string", required: true, description: "自评" },
-                        isPublic: { type: "boolean", required: false, description: "是否公开" }
-                      },
-                      transport: "Redis Stream (消息总线，异步处理)"
-                    }
-                  },
-                  protocol: "NSEAP Agent Protocol v1.0 / P3394-compatible"
-                };
-                const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `NSEAP-config-${user.person}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="rounded-lg border border-gray-200 p-2 text-primary-600 hover:bg-primary-50"
-              title="下载配置文件"
-            >
-              <Download className="h-4 w-4" />
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-gray-400">
-            下载配置文件到 Hermes 目录即可使用。切勿分享给他人。
-          </p>
+      {/* T08: API Key — generate on demand, shown only once */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <div className="flex items-center gap-2 mb-3">
+          <Key className="h-5 w-5 text-amber-500" />
+          <h2 className="text-base font-semibold text-gray-900">API Key</h2>
+          <span className="text-xs text-gray-400">用于 Hermes / 命令行提交</span>
         </div>
-      )}
+
+        {!apiKey ? (
+          <div>
+            <p className="text-sm text-gray-500 mb-3">
+              点击生成 API Key，密钥仅在生成时显示一次，请立即保存。
+            </p>
+            <button
+              onClick={handleGenerateKey}
+              disabled={generating}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
+            >
+              {generating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {generating ? "生成中..." : "生成 API Key"}
+            </button>
+            {keyError && <p className="mt-2 text-sm text-red-500">{keyError}</p>}
+          </div>
+        ) : (
+          <div>
+            <p className="text-sm text-amber-600 mb-2">
+              ⚠️ 密钥仅在本次显示，请立即复制或下载配置文件。
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-700 font-mono break-all select-all">
+                {showKey ? apiKey : "•".repeat(48)}
+              </code>
+              <button
+                onClick={() => setShowKey(!showKey)}
+                className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
+                title={showKey ? "隐藏" : "显示"}
+              >
+                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={() => { navigator.clipboard.writeText(apiKey); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+                className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50"
+                title="复制"
+              >
+                {copied ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={handleDownloadConfig}
+                className="rounded-lg border border-gray-200 p-2 text-primary-600 hover:bg-primary-50"
+                title="下载配置文件"
+              >
+                <Download className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={() => { setApiKey(null); setShowKey(false); }}
+                className="text-xs text-primary-600 hover:underline"
+              >
+                重新生成
+              </button>
+            </div>
+          </div>
+        )}
+        <p className="mt-2 text-xs text-gray-400">
+          下载配置文件到 Hermes 目录即可使用。切勿分享给他人。
+        </p>
+      </div>
 
       {/* 统计 */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

@@ -4,11 +4,11 @@ import type { SubmissionInput } from "@/lib/server/types";
 import { getPrincipal } from "@/lib/server/principal";
 import { AuditTrail, SUBMISSION_TASK_AGENT } from "@/lib/server/agents";
 import { enqueue, flush } from "@/lib/server/audit-outbox";
-import { publishEnvelope } from "@/lib/server/redis-stream";
 import { busAdapter } from "@/lib/server/bus-adapter";
 import { buildEnvelope } from "@/lib/server/agents";
 import { createTask } from "@/lib/server/tasks";
 import { makeId } from "@/lib/server/ids";
+import { getBoundStudentId, isStaff } from "@/lib/server/rbac";
 
 export async function POST(request: Request) {
   try {
@@ -19,16 +19,26 @@ export async function POST(request: Request) {
 
     const input = (await request.json()) as SubmissionInput;
 
-    // Row-level permission: student can only submit as themselves
-    if (principal.role === "student" && input.studentId !== principal.person) {
-      const audit = new AuditTrail();
-      audit.log(SUBMISSION_TASK_AGENT, "identity_mismatch", input.studentId, {
-        error_trace: `Principal ${principal.person} tried to submit as ${input.studentId}`,
-      });
-      enqueue(audit.entries);
-      flush();
+    // T03: Row-level permission — use bound student identity (works for both student and agent roles)
+    const boundStudentId = getBoundStudentId(principal);
+    if (boundStudentId !== null) {
+      // Student or student-companion agent: can only submit as themselves
+      if (input.studentId !== boundStudentId) {
+        const audit = new AuditTrail();
+        audit.log(SUBMISSION_TASK_AGENT, "identity_mismatch", input.studentId, {
+          error_trace: `Principal ${principal.person} (role=${principal.role}) tried to submit as ${input.studentId}`,
+        });
+        enqueue(audit.entries);
+        await flush();
+        return NextResponse.json(
+          { ok: false, error: "无权代他人提交", auditTrail: audit.entries },
+          { status: 403 },
+        );
+      }
+    } else if (!isStaff(principal)) {
+      // Not bound to a student and not staff → reject
       return NextResponse.json(
-        { ok: false, error: "无权代他人提交", auditTrail: audit.entries },
+        { ok: false, error: "无权提交" },
         { status: 403 },
       );
     }
@@ -87,7 +97,11 @@ export async function POST(request: Request) {
     }
 
     // Sync fallback: webapp only (agent channels blocked above)
-    const result = await submitChallengeProject(input, isAgentChannel ? principal.person : undefined);
+    const result = await submitChallengeProject(
+      input,
+      isAgentChannel ? principal.person : undefined,
+      boundStudentId ?? undefined,
+    );
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });
   } catch (error) {
     return NextResponse.json(

@@ -1,5 +1,6 @@
 import { optionalEnv } from "./env";
 import type { AiEvaluation, PortfolioDescription } from "./types";
+import { z } from "zod";
 
 type AiInput = {
   student: unknown;
@@ -9,67 +10,55 @@ type AiInput = {
   aiEvaluation?: unknown;
 };
 
+// ---- Zod schema for AI evaluation validation ----
+
+const AiEvaluationSchema = z.object({
+  problemUnderstanding: z.number().int().min(0).max(20),
+  aiUsage: z.number().int().min(0).max(20),
+  artifactCompleteness: z.number().int().min(0).max(20),
+  technicalExecution: z.number().int().min(0).max(20),
+  reflectionQuality: z.number().int().min(0).max(20),
+  scoreTotal: z.number().int().min(0).max(100),
+  strengths: z.string().min(1),
+  weaknesses: z.string().min(1),
+  suggestions: z.string().min(1),
+  feedback: z.string().min(1),
+});
+
+type AiEvaluationRaw = z.infer<typeof AiEvaluationSchema>;
+
+// ---- Default rubric (used when challenge has no rubric) ----
+
+const DEFAULT_RUBRIC = `请按以下五维标准评分（每项 0-20 分，总分 100）：
+
+1. 问题理解 (problemUnderstanding, 0-20)：是否准确理解项目目标与挑战
+2. AI 使用质量 (aiUsage, 0-20)：AI 工具使用是否恰当、有效
+3. 产物完整性 (artifactCompleteness, 0-20)：交付物是否齐全、可运行
+4. 技术实现 (technicalExecution, 0-20)：技术方案与代码质量
+5. 复盘质量 (reflectionQuality, 0-20)：AAR 反思是否深入、有洞察`;
+
+// ---- AI config ----
+
 const defaultAiProvider = "deepseek";
 const defaultAiBaseUrl = "https://api.deepseek.com";
 const defaultAiModel = "deepseek-chat";
 
-// Default rubric used when challenge has no custom rubric
-const DEFAULT_RUBRIC = "问题理解 20分；AI使用质量 20分；产物完整性 20分；技术实现 20分；复盘质量 20分";
-
-function parseRubricDimensions(rubricText: string): Array<{ name: string; maxScore: number }> {
-  const cleaned = rubricText
-    .replace(/[；;；]/g, ";")
-    .replace(/[＋+]/g, "+")
-    .replace(/[％%]/g, "%")
-    .trim();
-
-  // Try to split by common delimiters
-  const parts = cleaned.split(/[;；\n+]+/).filter(Boolean);
-
-  if (parts.length === 0) {
-    // Can't parse — return single-dimension fallback
-    return [{ name: "综合评分", maxScore: 100 }];
-  }
-
-  const dims: Array<{ name: string; maxScore: number }> = [];
-  for (const part of parts) {
-    const trimmed = part.trim();
-    if (!trimmed || trimmed.length < 2) continue;
-
-    // Try to extract "name number" or "name number%" or "name number分"
-    const match = trimmed.match(/^(.+?)\s*(\d+)\s*[分%]?\s*$/);
-    if (match) {
-      dims.push({ name: match[1].trim(), maxScore: parseInt(match[2], 10) });
-    } else {
-      // Can't parse number — just use the text as dimension name with equal weight
-      dims.push({ name: trimmed, maxScore: 20 });
-    }
-  }
-
-  if (dims.length === 0) {
-    return [{ name: "综合评分", maxScore: 100 }];
-  }
-
-  return dims;
-}
-
-function fallbackEvaluation(rubricText?: string): AiEvaluation {
-  const dims = parseRubricDimensions(rubricText || DEFAULT_RUBRIC);
-  const scores: Record<string, number> = {};
-
-  // Deterministic fallback scores: ~75% of max for each dimension
-  for (const dim of dims) {
-    scores[dim.name] = Math.round(dim.maxScore * 0.75);
-  }
-
+function fallbackEvaluation(reason: string): AiEvaluation {
   return {
     scoreTotal: 76,
-    scores,
+    scores: {
+      problemUnderstanding: 15,
+      aiUsage: 15,
+      artifactCompleteness: 16,
+      technicalExecution: 15,
+      reflectionQuality: 15,
+    },
     strengths: "提交材料具备基本完整性，项目目标和成果描述清楚。",
     weaknesses: "当前为本地 fallback 初评，尚未接入真实 AI 评估。",
     suggestions: "补充更详细的实现过程、AI 使用记录、截图或 Demo 说明。",
     feedback: "这是系统在缺少 AI API Key 时生成的确定性初评草稿，仅用于本地开发和流程测试。",
     fallback: true,
+    fallbackReason: reason,
   };
 }
 
@@ -118,99 +107,98 @@ async function callAiJson<T>(messages: Array<{ role: "system" | "user"; content:
   return JSON.parse(payload.choices[0].message.content) as T;
 }
 
-// Runtime validation: ensure the AI response has the required fields.
-// If validation fails, throws so the caller's catch block returns fallback.
-function validateAiEvaluation(obj: unknown): AiEvaluation {
-  if (!obj || typeof obj !== "object") {
-    throw new Error("AI evaluation response is not an object");
-  }
-  const o = obj as Record<string, unknown>;
+// ---- Public API ----
 
-  if (typeof o.scoreTotal !== "number") {
-    throw new Error(`AI evaluation missing scoreTotal (got ${typeof o.scoreTotal})`);
-  }
-  if (!o.scores || typeof o.scores !== "object") {
-    throw new Error("AI evaluation missing scores object");
-  }
-  if (typeof o.strengths !== "string") {
-    throw new Error("AI evaluation missing strengths");
-  }
-  if (typeof o.weaknesses !== "string") {
-    throw new Error("AI evaluation missing weaknesses");
-  }
-  if (typeof o.suggestions !== "string") {
-    throw new Error("AI evaluation missing suggestions");
-  }
-  if (typeof o.feedback !== "string") {
-    throw new Error("AI evaluation missing feedback");
+export async function evaluateSubmission(input: AiInput): Promise<AiEvaluation> {
+  const config = aiConfig();
+  if (!config.apiKey) {
+    const reason = "AI_API_KEY_missing";
+    console.error("[ai] fallback:", reason);
+    return fallbackEvaluation(reason);
   }
 
-  // Validate scores values are numbers
-  const scores = o.scores as Record<string, unknown>;
-  for (const [key, value] of Object.entries(scores)) {
-    if (typeof value !== "number") {
-      throw new Error(`AI evaluation score "${key}" is not a number (got ${typeof value})`);
-    }
-  }
+  // Extract rubric from challenge
+  const challenge = input.challenge as { rubric?: string } | undefined;
+  const rubricText = challenge?.rubric?.trim() || DEFAULT_RUBRIC;
 
-  return {
-    scoreTotal: o.scoreTotal,
-    scores: scores as Record<string, number>,
-    strengths: o.strengths,
-    weaknesses: o.weaknesses,
-    suggestions: o.suggestions,
-    feedback: o.feedback,
-  };
-}
-
-function buildEvaluationPrompt(rubricText: string): string {
-  return `你是 AI+X 项目课的助教。请严格按照以下评分标准对学生提交进行初评。
+  const systemPrompt = `你是 AI+X 项目课的助教。请按以下评分标准进行初评，只返回严格 JSON。
 
 评分标准：
 ${rubricText}
 
-请按评分标准中的每一项维度独立打分，然后返回如下 JSON（只返回 JSON，不要其他文字）：
+返回格式（严格 JSON，所有字段必填）：
 {
-  "scoreTotal": <加权总分，0-100 的整数>,
-  "scores": {
-    "<评分维度名>": <该维度得分>,
-    ...
-  },
-  "strengths": "<优点，100字以内>",
-  "weaknesses": "<不足，100字以内>",
-  "suggestions": "<改进建议，150字以内>",
-  "feedback": "<综合评语，200字以内>"
-}
+  "problemUnderstanding": <0-20 整数>,
+  "aiUsage": <0-20 整数>,
+  "artifactCompleteness": <0-20 整数>,
+  "technicalExecution": <0-20 整数>,
+  "reflectionQuality": <0-20 整数>,
+  "scoreTotal": <五项之和，0-100 整数>,
+  "strengths": "<优点，非空字符串>",
+  "weaknesses": "<不足，非空字符串>",
+  "suggestions": "<改进建议，非空字符串>",
+  "feedback": "<综合评价，非空字符串>"
+}`;
 
-注意：
-- scores 里每个维度的名字必须和评分标准里的一模一样
-- scoreTotal 是所有维度加权后的总分
-- 所有文字字段必须用中文`;
-}
+  // Try up to 2 times (initial + 1 retry)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const raw = await callAiJson<AiEvaluationRaw>([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: JSON.stringify(input, null, 2) },
+      ]);
 
-export async function evaluateSubmission(
-  input: AiInput,
-  rubricText?: string,
-): Promise<AiEvaluation> {
-  const rubric = rubricText || DEFAULT_RUBRIC;
+      // Zod validation
+      const parsed = AiEvaluationSchema.safeParse(raw);
+      if (!parsed.success) {
+        if (attempt === 0) {
+          console.warn("[ai] schema validation failed, retrying:", parsed.error.flatten());
+          continue; // retry once
+        }
+        const reason = `schema_validation_failed: ${parsed.error.flatten().fieldErrors}`;
+        console.error("[ai] fallback:", reason);
+        return fallbackEvaluation(reason);
+      }
 
-  if (!aiConfig().apiKey) return fallbackEvaluation(rubric);
+      const result = parsed.data;
 
-  try {
-    const result = await callAiJson<AiEvaluation>([
-      {
-        role: "system",
-        content: buildEvaluationPrompt(rubric),
-      },
-      {
-        role: "user",
-        content: JSON.stringify(input, null, 2),
-      },
-    ]);
-    return validateAiEvaluation(result);
-  } catch {
-    return fallbackEvaluation(rubric);
+      // Trust, but verify: enforce scoreTotal = sum of dimensions
+      const computedTotal =
+        result.problemUnderstanding +
+        result.aiUsage +
+        result.artifactCompleteness +
+        result.technicalExecution +
+        result.reflectionQuality;
+
+      return {
+        scoreTotal: computedTotal,
+        scores: {
+          problemUnderstanding: result.problemUnderstanding,
+          aiUsage: result.aiUsage,
+          artifactCompleteness: result.artifactCompleteness,
+          technicalExecution: result.technicalExecution,
+          reflectionQuality: result.reflectionQuality,
+        },
+        strengths: result.strengths,
+        weaknesses: result.weaknesses,
+        suggestions: result.suggestions,
+        feedback: result.feedback,
+      };
+    } catch (err) {
+      if (attempt === 0) {
+        console.warn("[ai] AI call failed, retrying:", err instanceof Error ? err.message : String(err));
+        continue;
+      }
+      const reason = `ai_call_failed: ${err instanceof Error ? err.message : String(err)}`;
+      console.error("[ai] fallback:", reason);
+      return fallbackEvaluation(reason);
+    }
   }
+
+  // Should not reach here, but TypeScript requires a return
+  const reason = "unexpected_loop_exit";
+  console.error("[ai] fallback:", reason);
+  return fallbackEvaluation(reason);
 }
 
 export async function generatePortfolioDescription(input: AiInput): Promise<PortfolioDescription> {

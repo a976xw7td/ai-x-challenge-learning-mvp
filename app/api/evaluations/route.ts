@@ -1,14 +1,14 @@
 // POST /api/evaluations — Teacher final review + Peer review (T11 + P2)
 import { NextResponse } from "next/server";
-import { getPrincipal, getStudentId } from "@/lib/server/principal";
+import { getPrincipal } from "@/lib/server/principal";
 import { teacherFinalizeReview } from "@/lib/server/review-workflow";
-import { getSubmissionById } from "@/lib/server/feishu";
 import * as feishu from "@/lib/server/feishu";
 import { notifyStudent } from "@/lib/server/notify";
+import { isStaff, can } from "@/lib/server/rbac";
 
 // GET /api/evaluations — list evaluations
 //   student: peer-review assignments where I am the evaluator (pending + done)
-//   teacher: all evaluations, optional ?submissionId= filter
+//   staff: all evaluations, optional ?submissionId= filter
 export async function GET(request: Request) {
   try {
     const principal = await getPrincipal();
@@ -22,27 +22,24 @@ export async function GET(request: Request) {
       ? await feishu.getEvaluationsBySubmission(submissionId)
       : await feishu.getEvaluations();
 
-    if (principal.role === "student" || getStudentId(principal)) {
-      // Student (webapp or agent): only peer-review assignments where I am evaluator
-      const sid = getStudentId(principal) || principal.person;
+    if (!isStaff(principal)) {
+      // Student: only peer-review assignments where I am the evaluator
       evaluations = evaluations.filter(
-        (e) => e.evaluator_type === "peer" && e.evaluator_id === sid,
+        (e) => e.evaluator_type === "peer" && e.evaluator_id === principal.person,
       );
-    } else if (principal.role !== "teacher") {
-      return NextResponse.json({ ok: false, error: "无权访问" }, { status: 403 });
     }
+    // Staff: see all (no filter)
 
-    // Join submission titles so the UI can render a meaningful list
+    // T05: N+1 fix — fetch all submissions once, build Map for lookup
     const subIds = Array.from(new Set(evaluations.map((e) => e.submission_id).filter(Boolean)));
+    const submissions = await feishu.getSubmissions();
+    const subMap = new Map(submissions.map((s) => [s.submission_id, s]));
+
     const titles: Record<string, { project_title: string; student_name: string }> = {};
-    await Promise.all(
-      subIds.map(async (sid) => {
-        try {
-          const sub = await getSubmissionById(sid);
-          if (sub) titles[sid] = { project_title: sub.project_title, student_name: sub.student_name };
-        } catch { /* keep going */ }
-      }),
-    );
+    for (const sid of subIds) {
+      const sub = subMap.get(sid);
+      if (sub) titles[sid] = { project_title: sub.project_title, student_name: sub.student_name };
+    }
 
     const items = evaluations.map((e) => ({
       evaluation_id: e.evaluation_id,
@@ -89,14 +86,22 @@ export async function POST(request: Request) {
         );
       }
 
-      const submission = await getSubmissionById(submissionId);
+      // T05: score validation — must be a finite number in [0, 100]
+      const scoreNum = Number(score);
+      if (!Number.isFinite(scoreNum) || scoreNum < 0 || scoreNum > 100) {
+        return NextResponse.json(
+          { ok: false, error: "分数必须在 0-100 之间" },
+          { status: 400 },
+        );
+      }
+
+      const submission = await feishu.getSubmissionById(submissionId);
       if (!submission) {
         return NextResponse.json({ ok: false, error: "提交记录不存在" }, { status: 404 });
       }
 
       // Verify this user is the assigned peer
-      const evalStudentId = getStudentId(principal) || principal.person;
-      if (submission.student_id === evalStudentId) {
+      if (submission.student_id === principal.person) {
         return NextResponse.json(
           { ok: false, error: "不能评审自己的提交" },
           { status: 403 },
@@ -104,10 +109,9 @@ export async function POST(request: Request) {
       }
 
       // Find my assignment placeholder (created at allocation time).
-      // A completed review has non-empty feedback; placeholders have feedback="".
       const existingEvaluations = await feishu.getEvaluationsBySubmission(submissionId);
       const mine = existingEvaluations.filter(
-        (e) => e.evaluator_type === "peer" && e.evaluator_id === evalStudentId,
+        (e) => e.evaluator_type === "peer" && e.evaluator_id === principal.person,
       );
       if (mine.some((e) => !!e.feedback)) {
         return NextResponse.json(
@@ -121,29 +125,22 @@ export async function POST(request: Request) {
       if (placeholder) {
         // Fill the assignment record in place (no duplicate rows)
         await feishu.updateEvaluation(placeholder.recordId, {
-          score_total: Number(score),
+          score_total: scoreNum,
           feedback: String(feedback),
         });
         evaluationId = placeholder.evaluation_id;
       } else {
-        // Unsolicited but allowed peer review — create a new record
-        const evaluation = await feishu.createEvaluation({
-          submission_id: submissionId,
-          student_id: submission.student_id,
-          challenge_id: submission.challenge_id,
-          evaluator_type: "peer",
-          evaluator_id: principal.person,
-          score_total: Number(score),
-          feedback: String(feedback),
-          created_at: new Date().toISOString(),
-        });
-        evaluationId = evaluation.evaluation_id;
+        // T05: No unsolicited peer review — must have an assignment
+        return NextResponse.json(
+          { ok: false, error: "你未被分配评审此提交" },
+          { status: 403 },
+        );
       }
 
       // Notify the submitter (best-effort)
       notifyStudent(
         submission.student_id,
-        `🤝 收到同伴评审\n\n你的项目「${submission.project_title}」收到一份同伴评审：${Number(score)} 分。\n反馈：${String(feedback)}`,
+        `🤝 收到同伴评审\n\n你的项目「${submission.project_title}」收到一份同伴评审：${scoreNum} 分。\n反馈：${String(feedback)}`,
       ).catch(() => {});
 
       return NextResponse.json({
@@ -153,8 +150,9 @@ export async function POST(request: Request) {
       });
     }
 
-    // ---- Teacher review (existing P1a) ----
-    // AGENT_CN.md §8.2: Agent channels must go through Redis Stream
+    // ---- Teacher review ----
+    // T05: Use isStaff() instead of role-specific checks
+    // T05: admin can also perform teacher final review
     const isAgentChannel = principal.role === "agent";
     if (isAgentChannel) {
       return NextResponse.json(
@@ -163,9 +161,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (principal.role !== "teacher") {
+    if (!can(principal, "finalize_review")) {
       return NextResponse.json(
-        { ok: false, error: "仅教师可提交评审" },
+        { ok: false, error: "无权提交评审" },
         { status: 403 },
       );
     }
@@ -186,7 +184,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const submission = await getSubmissionById(submissionId);
+    // T05: score validation
+    const scoreNum = Number(score);
+    if (!Number.isFinite(scoreNum) || scoreNum < 0 || scoreNum > 100) {
+      return NextResponse.json(
+        { ok: false, error: "分数必须在 0-100 之间" },
+        { status: 400 },
+      );
+    }
+
+    const submission = await feishu.getSubmissionById(submissionId);
     if (!submission || !submission.recordId) {
       return NextResponse.json({ ok: false, error: "提交记录不存在" }, { status: 404 });
     }
@@ -196,7 +203,7 @@ export async function POST(request: Request) {
       submissionRecordId: submission.recordId,
       studentId: submission.student_id,
       action,
-      score: Number(score),
+      score: scoreNum,
       feedback: String(feedback),
     });
 

@@ -1,86 +1,116 @@
-// POST /api/auth/login — Student identity verification + session token issuance (§3.5)
-// Client sends {studentId, name}; server validates against Feishu Students table,
-// determines role server-side, and signs an HttpOnly session cookie.
+// POST /api/auth/login — Universal identity verification + session token issuance (T07)
+// Checks Admins → Teachers → Students; issues HttpOnly session cookie with 24h expiry.
+// Redirects student to /dashboard, teacher/admin to /teacher.
 import { NextResponse } from "next/server";
-import { getStudentById, updateStudent } from "@/lib/server/feishu";
+import { getStudentById, getTeacherById, getAdminById, updateStudent } from "@/lib/server/feishu";
 import { signToken, determineRole, SESSION_COOKIE } from "@/lib/server/principal";
 import { generateApiKey } from "@/lib/server/agent-auth";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const studentId = String(body.studentId ?? "").trim();
+    const personId = String(body.studentId ?? body.userId ?? "").trim();
     const name = String(body.name ?? "").trim();
 
-    if (!studentId || !name) {
+    if (!personId || !name) {
       return NextResponse.json(
-        { ok: false, error: "请填写学生ID和姓名" },
+        { ok: false, error: "请填写ID和姓名" },
         { status: 400 },
       );
     }
 
-    // Validate against Students table
-    let student;
+    // T07: Universal login — try Admins → Teachers → Students
+    let identity: { name: string; class_id?: string; api_key?: string; recordId?: string } | null = null;
+    let lookupTable = "";
+
+    // 1. Try Admins
     try {
-      student = await getStudentById(studentId);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // BUGFIX: distinguish "not found" from Feishu/network errors
-      if (msg.includes("not found") || msg.includes("Student not found")) {
+      const admin = await getAdminById(personId);
+      if (admin) {
+        identity = admin;
+        lookupTable = "admins";
+      }
+    } catch { /* table not ready */ }
+
+    // 2. Try Teachers
+    if (!identity) {
+      try {
+        const teacher = await getTeacherById(personId);
+        if (teacher) {
+          identity = teacher;
+          lookupTable = "teachers";
+        }
+      } catch { /* table not ready */ }
+    }
+
+    // 3. Try Students
+    if (!identity) {
+      try {
+        const student = await getStudentById(personId);
+        identity = student;
+        lookupTable = "students";
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("not found") || msg.includes("Student not found")) {
+          return NextResponse.json(
+            { ok: false, error: "ID不存在或未导入系统" },
+            { status: 401 },
+          );
+        }
+        console.error("[login] lookup error:", msg);
         return NextResponse.json(
-          { ok: false, error: "学生ID不存在或未导入系统" },
-          { status: 401 },
+          { ok: false, error: "系统暂时无法验证身份，请稍后重试" },
+          { status: 503 },
         );
       }
-      console.error("[login] Feishu lookup error:", msg);
-      return NextResponse.json(
-        { ok: false, error: "系统暂时无法验证身份，请稍后重试" },
-        { status: 503 },
-      );
     }
 
     // Name check
-    if (student.name.trim().toLowerCase() !== name.toLowerCase()) {
+    if (identity.name.trim().toLowerCase() !== name.toLowerCase()) {
       return NextResponse.json(
         { ok: false, error: "姓名不匹配" },
         { status: 401 },
       );
     }
 
-    // P2: Auto-generate API key on first login (one per student, stored in Feishu)
-    let apiKey = student.api_key;
-    if (!apiKey && student.recordId) {
+    // Auto-generate API key for students on first login
+    let apiKey: string | undefined;
+    if (lookupTable === "students" && identity.recordId && !identity.api_key) {
       apiKey = generateApiKey();
-      await updateStudent(student.recordId, { api_key: apiKey }).catch((err) => {
+      await updateStudent(identity.recordId, { api_key: apiKey }).catch((err) => {
         console.warn("[login] Failed to save API key:", err instanceof Error ? err.message : String(err));
       });
     }
 
-    // Determine role SERVER-SIDE ONLY
-    const role = determineRole(studentId, (student as unknown as Record<string, unknown>)["role"] as string | undefined);
+    // Determine role
+    const role = await determineRole(personId);
 
     // Sign session token
     const token = signToken({
-      person: studentId,
+      person: personId,
       org: "elite20",
       role,
     });
 
+    // T07: Determine redirect based on role
+    const redirect = role === "student" ? "/dashboard" : "/teacher";
+
     const response = NextResponse.json({
       ok: true,
-      person: studentId,
+      person: personId,
       role,
-      name: student.name,
-      class_id: student.class_id || "",
-      api_key: apiKey || undefined,
+      name: identity.name,
+      class_id: identity.class_id || "",
+      redirect,
+      // T07: api_key NOT returned in login response
     });
 
     response.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
-      secure: process.env.COOKIE_SECURE === "true",
+      secure: process.env.COOKIE_SECURE === "true" || process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24,
+      maxAge: 60 * 60 * 24, // 24h
     });
 
     return response;

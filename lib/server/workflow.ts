@@ -52,8 +52,13 @@ async function allocatePeers(
     const sameCohort = candidates.filter((s) => s.cohort === cohort);
     const pool = sameCohort.length >= PEER_COUNT ? sameCohort : candidates;
 
-    // Randomly select up to PEER_COUNT peers
-    const selected = pool.sort(() => Math.random() - 0.5).slice(0, PEER_COUNT);
+    // Randomly select up to PEER_COUNT peers using Fisher-Yates shuffle
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    const selected = shuffled.slice(0, PEER_COUNT);
 
     if (selected.length === 0) {
       audit.log(SUBMISSION_TASK_AGENT, "peer_allocation_failed", submissionId, {
@@ -148,12 +153,22 @@ async function createSubmissionWithAgentFields(
 export async function submitChallengeProject(
   input: SubmissionInput,
   callerAgentId?: string,
+  enforcedStudentId?: string,
 ): Promise<WorkflowResult> {
   const audit = new AuditTrail();
   const dedupeKey = `${input.studentId}:${input.challengeId}:${input.githubRepoUrl}`;
   const fromAgent = callerAgentId || WEBAPP_FALLBACK_STUDENT_AGENT;
 
   try {
+    // T03: Defense-in-depth — if enforcedStudentId is set, reject mismatches
+    if (enforcedStudentId && input.studentId !== enforcedStudentId) {
+      audit.log(SUBMISSION_TASK_AGENT, "identity_mismatch_defense", input.studentId, {
+        error_trace: `enforcedStudentId=${enforcedStudentId} but input.studentId=${input.studentId}`,
+      });
+      enqueue(audit.entries);
+      await await flush();
+      return { ok: false, error: "身份不匹配，提交被拒绝", auditTrail: audit.entries };
+    }
     // 1. Student Companion constructs the submission request
     const envelope = buildEnvelope({
       messageType: "submission_request",
@@ -179,7 +194,7 @@ export async function submitChallengeProject(
       if (existing) {
         audit.log(SUBMISSION_TASK_AGENT, "duplicate_submission_rejected", dedupeKey);
         enqueue(audit.entries);
-        flush();
+        await flush();
         return { ok: false, error: "重复提交，请勿重试", auditTrail: audit.entries };
       }
       await redis.setex(dedupeRedisKey, DEDUPE_TTL, Date.now().toString());
@@ -189,7 +204,7 @@ export async function submitChallengeProject(
       if (lastTs !== undefined && Date.now() - lastTs < DEDUPE_WINDOW_MS) {
         audit.log(SUBMISSION_TASK_AGENT, "duplicate_submission_rejected", dedupeKey);
         enqueue(audit.entries);
-        flush();
+        await flush();
         return { ok: false, error: "重复提交，请勿重试", auditTrail: audit.entries };
       }
       dedupeCache.set(dedupeKey, Date.now());
@@ -367,7 +382,7 @@ export async function submitChallengeProject(
       audit.log(SUBMISSION_TASK_AGENT, "create_portfolio_item", String(portfolioItem.portfolio_item_id));
 
       enqueue(audit.entries);
-      flush();
+      await flush();
       // T8: notify student of submission success (with AI score)
       const notifyResult = await notifyStudent(input.studentId,
         `✅ 提交成功！你的项目「${input.projectTitle}」已提交。\nAI 初评得分：${aiEvaluation.scoreTotal}/100\n评语：${aiEvaluation.feedback}`
@@ -376,7 +391,7 @@ export async function submitChallengeProject(
       if (!notifyResult.ok) {
         const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: notifyResult.error });
         enqueue([entry]);
-        flush();
+        await flush();
       }
       return {
         ok: true,
@@ -390,7 +405,7 @@ export async function submitChallengeProject(
     }
 
     enqueue(audit.entries);
-    flush();
+    await flush();
     return {
       ok: true,
       submissionId: submission.submission_id,
@@ -414,10 +429,10 @@ export async function submitChallengeProject(
     if (!notifyResult.ok) {
       const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: notifyResult.error });
       enqueue([entry]);
-      flush();
+      await flush();
     }
     enqueue(audit.entries);
-    flush();
+    await flush();
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Unknown workflow error",

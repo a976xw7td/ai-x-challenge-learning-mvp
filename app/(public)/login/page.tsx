@@ -23,8 +23,8 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        // Redirect to submit page
-        router.push("/submit");
+        // T07: Follow server's redirect instruction based on role
+        router.push(data.redirect || "/dashboard");
         router.refresh();
       } else {
         setError(data.error || "登录失败");
