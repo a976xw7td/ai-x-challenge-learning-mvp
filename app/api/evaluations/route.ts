@@ -1,6 +1,6 @@
 // POST /api/evaluations — Teacher final review + Peer review (T11 + P2)
 import { NextResponse } from "next/server";
-import { getPrincipal } from "@/lib/server/principal";
+import { getPrincipal, getStudentId } from "@/lib/server/principal";
 import { teacherFinalizeReview } from "@/lib/server/review-workflow";
 import { getSubmissionById } from "@/lib/server/feishu";
 import * as feishu from "@/lib/server/feishu";
@@ -22,10 +22,11 @@ export async function GET(request: Request) {
       ? await feishu.getEvaluationsBySubmission(submissionId)
       : await feishu.getEvaluations();
 
-    if (principal.role === "student") {
-      // Only my peer-review assignments
+    if (principal.role === "student" || getStudentId(principal)) {
+      // Student (webapp or agent): only peer-review assignments where I am evaluator
+      const sid = getStudentId(principal) || principal.person;
       evaluations = evaluations.filter(
-        (e) => e.evaluator_type === "peer" && e.evaluator_id === principal.person,
+        (e) => e.evaluator_type === "peer" && e.evaluator_id === sid,
       );
     } else if (principal.role !== "teacher") {
       return NextResponse.json({ ok: false, error: "无权访问" }, { status: 403 });
@@ -94,7 +95,8 @@ export async function POST(request: Request) {
       }
 
       // Verify this user is the assigned peer
-      if (submission.student_id === principal.person) {
+      const evalStudentId = getStudentId(principal) || principal.person;
+      if (submission.student_id === evalStudentId) {
         return NextResponse.json(
           { ok: false, error: "不能评审自己的提交" },
           { status: 403 },
@@ -105,7 +107,7 @@ export async function POST(request: Request) {
       // A completed review has non-empty feedback; placeholders have feedback="".
       const existingEvaluations = await feishu.getEvaluationsBySubmission(submissionId);
       const mine = existingEvaluations.filter(
-        (e) => e.evaluator_type === "peer" && e.evaluator_id === principal.person,
+        (e) => e.evaluator_type === "peer" && e.evaluator_id === evalStudentId,
       );
       if (mine.some((e) => !!e.feedback)) {
         return NextResponse.json(

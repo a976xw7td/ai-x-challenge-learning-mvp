@@ -1,7 +1,7 @@
 // GET /api/submissions — List submissions with row-level permissions (T10)
 import { NextResponse } from "next/server";
 import { getSubmissions } from "@/lib/server/feishu";
-import { getPrincipal } from "@/lib/server/principal";
+import { getPrincipal, getStudentId } from "@/lib/server/principal";
 
 export async function GET() {
   try {
@@ -13,10 +13,9 @@ export async function GET() {
       );
     }
 
-    // Row-level permission: student sees only own submissions
-    const filter = principal.role === "student"
-      ? { studentId: principal.person }
-      : undefined;
+    // Row-level permission: student (webapp or agent channel) sees only own submissions
+    const studentId = getStudentId(principal);
+    const filter = studentId ? { studentId } : undefined;
 
     const submissions = await getSubmissions(filter);
     return NextResponse.json({ ok: true, submissions });

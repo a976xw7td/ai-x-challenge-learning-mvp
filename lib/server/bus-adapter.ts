@@ -193,10 +193,10 @@ class RedisBusAdapter implements BusAdapter {
   }
 }
 
-// ---- Hermes/OpenClaw stub adapter (P3) ----
+// ---- NSEAP/OpenClaw stub adapter (P3) ----
 
-class HermesBusAdapter implements BusAdapter {
-  readonly protocolId = "hermes-acp/v1";
+class NseapBusAdapter implements BusAdapter {
+  readonly protocolId = "nseap-acp/v1";
   private _available = false;
 
   isAvailable(): boolean {
@@ -204,8 +204,8 @@ class HermesBusAdapter implements BusAdapter {
   }
 
   async publish(envelope: MessageEnvelope): Promise<string | null> {
-    // TODO: Hermes/OpenClaw SDK integration
-    console.log("[bus:hermes] publish (stub):", envelope.message_type);
+    // TODO: NSEAP/OpenClaw SDK integration
+    console.log("[bus:nseap] publish (stub):", envelope.message_type);
     return null;
   }
 
@@ -215,7 +215,7 @@ class HermesBusAdapter implements BusAdapter {
     _handler: (envelope: MessageEnvelope, id: string) => Promise<void>,
     _signal?: AbortSignal,
   ): Promise<void> {
-    console.log("[bus:hermes] subscribe (stub)");
+    console.log("[bus:nseap] subscribe (stub)");
   }
 }
 
@@ -226,9 +226,9 @@ let _adapter: BusAdapter | null = null;
 export function getBusAdapter(): BusAdapter {
   if (_adapter) return _adapter;
 
-  if (process.env.HERMES_BUS_URL) {
-    console.log("[bus] Using Hermes/OpenClaw bus (stub)");
-    _adapter = new HermesBusAdapter();
+  if (process.env.NSEAP_BUS_URL || process.env.HERMES_BUS_URL) {
+    console.log("[bus] Using NSEAP/OpenClaw bus (stub)");
+    _adapter = new NseapBusAdapter();
   } else {
     console.log("[bus] Using Redis Stream bus");
     _adapter = new RedisBusAdapter();

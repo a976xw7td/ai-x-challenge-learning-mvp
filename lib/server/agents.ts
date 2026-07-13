@@ -30,7 +30,7 @@ import studentManifestRaw from "../../agents/manifests/student-companion-webapp-
 import submissionManifestRaw from "../../agents/manifests/submission-task-agent-001.json";
 import reviewManifestRaw from "../../agents/manifests/review-task-agent-001.json";
 import teacherManifestRaw from "../../agents/manifests/teacher-companion-webapp-fallback.json";
-import hermesManifestRaw from "../../agents/manifests/hermes-student-companion.json";
+import nseapManifestRaw from "../../agents/manifests/nseap-student-companion.json";
 import workbuddyManifestRaw from "../../agents/manifests/workbuddy-teacher-companion.json";
 import zhanghaoManifestRaw from "../../agents/manifests/student-companion-zhanghao-001.json";
 
@@ -73,7 +73,9 @@ export const STUDENT_COMPANION_MANIFEST = parseManifestWithOwner(studentManifest
 export const SUBMISSION_TASK_MANIFEST = parseManifestWithOwner(submissionManifestRaw, SubmissionTaskAgentManifestSchema, "submission-task-agent-001");
 export const REVIEW_TASK_MANIFEST = parseManifestWithOwner(reviewManifestRaw, ReviewTaskAgentManifestSchema, "review-task-agent-001");
 export const TEACHER_COMPANION_MANIFEST = parseManifestWithOwner(teacherManifestRaw, TeacherCompanionManifestSchema, "teacher-companion-webapp-fallback");
-export const HERMES_STUDENT_MANIFEST = parseManifestWithOwner(hermesManifestRaw, StudentCompanionManifestSchema, "hermes-student-companion");
+export const NSEAP_STUDENT_MANIFEST = parseManifestWithOwner(nseapManifestRaw, StudentCompanionManifestSchema, "student-companion-nseap");
+/** @deprecated Use NSEAP_STUDENT_MANIFEST instead. */
+export const HERMES_STUDENT_MANIFEST = NSEAP_STUDENT_MANIFEST;
 export const WORKBUDDY_TEACHER_MANIFEST = parseManifestWithOwner(workbuddyManifestRaw, TeacherCompanionManifestSchema, "workbuddy-teacher-companion");
 export const ZHANGHAO_STUDENT_MANIFEST = parseManifestWithOwner(zhanghaoManifestRaw, StudentCompanionManifestSchema, "student-companion-zhanghao-001");
 

@@ -1,7 +1,7 @@
 // GET /api/submissions/[id] — Get single submission detail (T10)
 import { NextResponse } from "next/server";
 import { getSubmissionById, getEvaluationsBySubmission } from "@/lib/server/feishu";
-import { getPrincipal } from "@/lib/server/principal";
+import { getPrincipal, getStudentId } from "@/lib/server/principal";
 
 export async function GET(
   _request: Request,
@@ -25,13 +25,14 @@ export async function GET(
       );
     }
 
-    // Row-level: student can see own submissions, or ones they were
-    // assigned to peer-review (P2).
+    // Row-level: student (webapp or agent) can see own submissions,
+    // or ones they were assigned to peer-review (P2).
+    const studentId = getStudentId(principal);
     let peerReview: { assigned: boolean; completed: boolean } | undefined;
-    if (principal.role === "student" && submission.student_id !== principal.person) {
+    if (studentId && submission.student_id !== studentId) {
       const evaluations = await getEvaluationsBySubmission(id);
       const mine = evaluations.filter(
-        (e) => e.evaluator_type === "peer" && e.evaluator_id === principal.person,
+        (e) => e.evaluator_type === "peer" && e.evaluator_id === studentId,
       );
       if (mine.length === 0) {
         return NextResponse.json(

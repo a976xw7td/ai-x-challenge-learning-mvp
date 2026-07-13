@@ -1,4 +1,4 @@
-// Channel Adapters — P3 T4: normalize Hermes CLI and WorkBuddy desktop
+// Channel Adapters — P3 T4: normalize NSEAP Agent CLI and WorkBuddy desktop
 // requests into the unified Envelope v2 → bus → handle_message pipeline.
 // Each adapter handles protocol-specific concerns (auth, format, routing)
 // but produces the same Envelope v2 output. (P3394 Channel Adapter pattern)
@@ -25,16 +25,15 @@ export interface ChannelResponse {
   error?: string;
 }
 
-// ---- Hermes CLI Adapter ----
+// ---- NSEAP Agent CLI Adapter ----
 
 /**
- * Hermes adapter: receives commands from the Hermes CLI,
- * constructs envelopes, and publishes to the bus.
+ * NSEAP adapter: receives commands from NSEAP-compatible agent CLIs
+ * (Hermes, Codex, WorkBuddy), constructs envelopes, and publishes to the bus.
  *
- * Hermes CLI sends JSON over stdin/stdout or HTTP.
- * This adapter handles the HTTP path (POST /api/hermes).
+ * Agent CLIs send JSON over HTTP POST /api/nseap.
  */
-export async function hermesAdapter(req: ChannelRequest): Promise<ChannelResponse> {
+export async function nseapAdapter(req: ChannelRequest): Promise<ChannelResponse> {
   const taskId = makeId("task");
   const auditId = makeId("audit");
 
@@ -57,6 +56,9 @@ export async function hermesAdapter(req: ChannelRequest): Promise<ChannelRespons
     return { ok: false, error: err instanceof Error ? err.message : "请求失败" };
   }
 }
+
+/** @deprecated Use nseapAdapter instead. */
+export const hermesAdapter = nseapAdapter;
 
 // ---- WorkBuddy Desktop Adapter ----
 

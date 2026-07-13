@@ -4,7 +4,7 @@
 
 ## 1. 获取凭证
 
-学生登录 `{server}/login` → 个人中心 → 下载 `hermes-config-{学号}.json`。
+学生登录 `{server}/login` → 个人中心 → 下载 `NSEAP-config-{学号}.json`。
 
 ## 2. 认证
 

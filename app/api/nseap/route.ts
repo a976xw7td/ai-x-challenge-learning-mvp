@@ -1,8 +1,8 @@
-// POST /api/hermes — Hermes CLI channel adapter (P3 T4)
-// Accepts requests from Hermes CLI, validates API key, publishes to bus.
+// POST /api/nseap — NSEAP Agent CLI channel adapter (P3 T4)
+// Accepts requests from NSEAP-compatible agent CLIs, validates API key, publishes to bus.
 import { NextResponse } from "next/server";
 import { getAgentPrincipal } from "@/lib/server/principal";
-import { hermesAdapter } from "@/lib/server/channel-adapters";
+import { nseapAdapter } from "@/lib/server/channel-adapters";
 
 export async function POST(request: Request) {
   try {
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await hermesAdapter({
+    const result = await nseapAdapter({
       agent_id: principal.person,
       message_type,
       to_agent: to_agent || "submission-task-agent-001",

@@ -107,4 +107,18 @@ export function determineRole(studentId: string, studentsRole?: string): string 
   return "student";
 }
 
+/**
+ * Extract the real student_id from a Principal.
+ * WebApp sessions have role="student" with person=studentId.
+ * Agent channels have role="agent" with person="student-companion-{studentId}".
+ * Returns null if the principal does not represent a student.
+ */
+export function getStudentId(principal: ServicePrincipal): string | null {
+  if (principal.role === "student") return principal.person;
+  if (principal.role === "agent" && principal.person.startsWith("student-companion-")) {
+    return principal.person.slice("student-companion-".length);
+  }
+  return null;
+}
+
 export { SESSION_COOKIE };
