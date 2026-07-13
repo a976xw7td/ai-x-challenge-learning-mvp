@@ -9,6 +9,8 @@ export type Student = {
   feishu_open_id?: string;
   api_key?: string;
   api_key_hash?: string;
+  feishu_app_id?: string;
+  feishu_app_secret?: string;
   class_id?: string;
   github_username?: string;
   github_profile_url?: string;

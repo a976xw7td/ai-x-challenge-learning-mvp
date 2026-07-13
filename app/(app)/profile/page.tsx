@@ -19,6 +19,7 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  Bot,
 } from "lucide-react";
 import {
   fetchCurrentUser,
@@ -40,6 +41,13 @@ export default function ProfilePage() {
   const [copied, setCopied] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [keyError, setKeyError] = useState("");
+
+  // Feishu Bot binding
+  const [botAppId, setBotAppId] = useState("");
+  const [botAppSecret, setBotAppSecret] = useState("");
+  const [botSaving, setBotSaving] = useState(false);
+  const [botResult, setBotResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [botBound, setBotBound] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -83,6 +91,37 @@ export default function ProfilePage() {
     }
     setGenerating(false);
   }, []);
+
+  // Save Feishu Bot credentials
+  const handleSaveBot = useCallback(async () => {
+    if (!botAppId.trim() || !botAppSecret.trim()) {
+      setBotResult({ ok: false, message: "请填写 App ID 和 App Secret" });
+      return;
+    }
+    setBotSaving(true);
+    setBotResult(null);
+    try {
+      const res = await fetch("/api/auth/me");
+      const me = await res.json();
+      if (!me.ok) throw new Error("未登录");
+
+      const saveRes = await fetch("/api/auth/bind-bot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feishuAppId: botAppId.trim(), feishuAppSecret: botAppSecret.trim() }),
+      });
+      const data = await saveRes.json();
+      if (data.ok) {
+        setBotBound(true);
+        setBotResult({ ok: true, message: "飞书 Bot 绑定成功" });
+      } else {
+        setBotResult({ ok: false, message: data.error || "绑定失败" });
+      }
+    } catch (e) {
+      setBotResult({ ok: false, message: e instanceof Error ? e.message : "网络错误" });
+    }
+    setBotSaving(false);
+  }, [botAppId, botAppSecret]);
 
   const handleDownloadConfig = useCallback(() => {
     if (!apiKey || !user) return;
@@ -239,6 +278,52 @@ export default function ProfilePage() {
         )}
         <p className="mt-2 text-xs text-gray-400">
           下载配置文件到 Companion Agent 目录即可使用。切勿分享给他人。
+        </p>
+      </div>
+
+      {/* 飞书 Bot 绑定 */}
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <div className="flex items-center gap-2 mb-3">
+          <Bot className="h-5 w-5 text-green-500" />
+          <h2 className="text-base font-semibold text-gray-900">飞书 Bot 绑定</h2>
+          <span className="text-xs text-gray-400">绑定你自己的飞书机器人</span>
+        </div>
+
+        {botBound ? (
+          <div className="rounded-lg bg-green-50 p-3 text-sm text-green-700">
+            ✅ 飞书 Bot 已绑定。通知将通过你的 Bot 发送。
+            <button onClick={() => setBotBound(false)} className="ml-3 text-green-600 underline text-xs">重新绑定</button>
+          </div>
+        ) : (
+          <div>
+            <p className="text-sm text-gray-500 mb-3">
+              在飞书开放平台创建应用 → 获取 App ID 和 App Secret → 填入下方。
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700">App ID</label>
+                <input type="text" value={botAppId} onChange={(e) => setBotAppId(e.target.value)}
+                  placeholder="cli_xxxxxxxxxxxx" className="mt-1 w-full rounded-lg border border-gray-200 py-2 px-3 text-sm font-mono" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700">App Secret</label>
+                <input type="password" value={botAppSecret} onChange={(e) => setBotAppSecret(e.target.value)}
+                  placeholder="••••••••••••••••" className="mt-1 w-full rounded-lg border border-gray-200 py-2 px-3 text-sm font-mono" />
+              </div>
+              {botResult && (
+                <div className={`rounded-lg p-2 text-xs ${botResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                  {botResult.message}
+                </div>
+              )}
+              <button onClick={handleSaveBot} disabled={botSaving}
+                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">
+                {botSaving ? "保存中..." : "保存绑定"}
+              </button>
+            </div>
+          </div>
+        )}
+        <p className="mt-2 text-xs text-gray-400">
+          绑定后提交作业、收到评审等通知将通过你自己的 Bot 发送，而不是系统 Bot。
         </p>
       </div>
 

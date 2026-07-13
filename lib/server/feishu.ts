@@ -217,6 +217,8 @@ function normalizeStudent(record: { record_id: string; fields: Record<string, un
     feishu_open_id: asString(field(f, "feishu_open_id")),
     api_key: asString(field(f, "api_key")),
     api_key_hash: asString(f["API Key Hash"] ?? f["api_key_hash"]),
+    feishu_app_id: asString(f["飞书AppID"] ?? f["feishu_app_id"]),
+    feishu_app_secret: asString(f["飞书AppSecret"] ?? f["feishu_app_secret"]),
     class_id: asString(field(f, "class_id")),
     github_username: asString(field(f, "github_username")),
     github_profile_url: asString(field(f, "github_profile_url")),

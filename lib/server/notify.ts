@@ -1,16 +1,18 @@
 // notify.ts — Feishu Bot notification bridge (§6.4 notification boundary)
-// Sends IM messages to students (private chat) and class groups.
-// All notification failures are audited as notify_failed, never block business.
+// Supports per-student bots: if a student has configured their own Feishu Bot,
+// notifications go through their bot; otherwise falls back to system bot.
 import { requireEnv, optionalEnv } from "./env";
 import * as feishu from "./feishu";
 
-// ---- Feishu IM API ----
+// ---- Token cache (per app_id) ----
 
-let cachedTenantToken: { token: string; expiresAt: number } | null = null;
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
-async function getTenantToken(): Promise<string> {
-  if (cachedTenantToken && cachedTenantToken.expiresAt > Date.now() + 60_000) {
-    return cachedTenantToken.token;
+async function getTenantToken(appId: string, appSecret: string): Promise<string> {
+  const key = appId;
+  const cached = tokenCache.get(key);
+  if (cached && cached.expiresAt > Date.now() + 60_000) {
+    return cached.token;
   }
 
   const resp = await fetch(
@@ -18,10 +20,7 @@ async function getTenantToken(): Promise<string> {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        app_id: requireEnv("FEISHU_APP_ID"),
-        app_secret: requireEnv("FEISHU_APP_SECRET"),
-      }),
+      body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
     },
   );
 
@@ -30,54 +29,58 @@ async function getTenantToken(): Promise<string> {
     throw new Error(`Feishu token failed: ${payload.msg || resp.statusText}`);
   }
 
-  cachedTenantToken = {
+  tokenCache.set(key, {
     token: payload.tenant_access_token,
     expiresAt: Date.now() + Math.max(1, payload.expire - 120) * 1000,
-  };
-  return cachedTenantToken.token;
+  });
+  return tokenCache.get(key)!.token;
+}
+
+interface BotCredentials {
+  appId: string;
+  appSecret: string;
 }
 
 async function sendImMessage(
   receiveIdType: "open_id" | "chat_id",
   receiveId: string,
   text: string,
+  bot?: BotCredentials,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const token = await getTenantToken();
-    const body = JSON.stringify({
-      receive_id: receiveId,
-      msg_type: "text",
-      content: JSON.stringify({ text }),
-    });
+    const appId = bot?.appId || requireEnv("FEISHU_APP_ID");
+    const appSecret = bot?.appSecret || requireEnv("FEISHU_APP_SECRET");
+    const token = await getTenantToken(appId, appSecret);
 
     const resp = await fetch(
-      `https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`,
+      "https://open.feishu.cn/open-apis/im/v1/messages",
       {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json; charset=utf-8",
+          "Content-Type": "application/json",
         },
-        body,
+        body: JSON.stringify({
+          receive_id: receiveId,
+          msg_type: "text",
+          content: JSON.stringify({ text }),
+        }),
       },
     );
 
     const payload = await resp.json();
-    if (!resp.ok || payload.code !== 0) {
-      return { ok: false, error: payload.msg || resp.statusText };
+    if (resp.ok && payload.code === 0) {
+      return { ok: true };
     }
-    return { ok: true };
+    return { ok: false, error: payload.msg || resp.statusText };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
-// ---- Public API ----
-
 /**
- * Send a private IM to a student via Feishu Bot.
- * Reads student's feishu_open_id from Students table.
- * Silently skips if feishu_open_id column is missing (console.warn).
+ * Send a DM to a student. Uses the student's own Feishu Bot if configured,
+ * otherwise falls back to the system bot (FEISHU_APP_ID env var).
  */
 export async function notifyStudent(
   studentId: string,
@@ -89,8 +92,15 @@ export async function notifyStudent(
       console.warn(`[notify] Student ${studentId} has no feishu_open_id — notification skipped`);
       return { ok: false, skipped: true, error: "no feishu_open_id" };
     }
-    const result = await sendImMessage("open_id", student.feishu_open_id, text);
-    console.log(`[notify] Sent to ${studentId} (open_id=${student.feishu_open_id.slice(0,8)}...): ok=${result.ok}`, result.error ? `error=${result.error}` : "");
+
+    // Use student's own bot if configured
+    let bot: BotCredentials | undefined;
+    if (student.feishu_app_id && student.feishu_app_secret) {
+      bot = { appId: student.feishu_app_id, appSecret: student.feishu_app_secret };
+    }
+
+    const result = await sendImMessage("open_id", student.feishu_open_id, text, bot);
+    console.log(`[notify] Sent to ${studentId} ${bot ? "(自有Bot)" : "(系统Bot)"}: ok=${result.ok}`);
     return result;
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -98,8 +108,7 @@ export async function notifyStudent(
 }
 
 /**
- * Send a message to the class group chat.
- * Uses env FEISHU_CLASS_CHAT_ID. Silently skips if not configured.
+ * Send a message to the class group chat (always uses system bot).
  */
 export async function notifyGroup(
   text: string,
