@@ -29,6 +29,15 @@ export interface Challenge {
   difficulty: "入门" | "进阶" | "挑战";
   status: "待完成" | "进行中" | "已完成";
   team: string;
+  deliverables?: string;
+  rubric?: string;
+  deadline?: string;
+  skills?: string;
+  github_repo?: string;
+  objective?: string;
+  brief?: string;
+  learning_objectives?: string;
+  required_deliverables?: string;
 }
 
 export interface DocSection {
@@ -64,12 +73,23 @@ export interface RubricItem {
   levels: RubricLevel[];
 }
 
-export interface ChallengeDetail extends Challenge {
-  deliverables: string[];
-  deadline: string;
-  skills: string[];
+export interface ChallengeDetail {
+  id: string;
+  number: string;
+  title: string;
+  description: string;
+  difficulty: "入门" | "进阶" | "挑战";
+  status: "待完成" | "进行中" | "已完成";
+  team: string;
+  deliverables?: string;
+  deadline?: string;
+  skills?: string;
+  rubric?: string;
+  github_repo?: string;
+  deadlines: string[];
+  skillsList: string[];
   requirements: string[];
-  rubric: RubricItem[];
+  rubricItems: RubricItem[];
   resources: string[];
 }
 
@@ -130,7 +150,7 @@ export interface StudentProfile {
   studentClass: string;
   completedChallenges: number;
   totalChallenges: number;
-  skills: string[];
+  skillsList: string[];
 }
 
 // ============================================================
@@ -148,16 +168,16 @@ export const courses: Course[] = [
 // ============================================================
 
 export const challenges: Challenge[] = [
-  { id: "c01", number: "C01", title: "构建你的第一个 AI 助手", description: "用 AI 工具创建一个能与用户对话的 AI 助手——你不需要会编程，只需要会思考和指挥", difficulty: "入门", status: "已完成", team: "个人" },
-  { id: "c02", number: "C02", title: "AI 结对编程入门", description: "体验 AI 辅助编程的完整流程——不是让 AI 替你写代码，而是让 AI 做你的结对编程伙伴", difficulty: "入门", status: "已完成", team: "个人" },
-  { id: "c03", number: "C03", title: "提示词工程实战", description: "系统学习提示词设计——从单轮对话到多轮上下文管理，让 AI 稳定输出高质量结果", difficulty: "入门", status: "已完成", team: "个人" },
-  { id: "c04", number: "C04", title: "用 AI 做研究综述", description: "用 AI 工具快速梳理一个领域的文献、构建知识图谱、撰写综述报告", difficulty: "入门", status: "进行中", team: "个人" },
-  { id: "c05", number: "C05", title: "单智能体系统开发", description: "用 AI 辅助设计并实现一个完整功能的 AI Agent，包含身份定义、能力声明和接口设计", difficulty: "进阶", status: "待完成", team: "Agent 组" },
-  { id: "c06", number: "C06", title: "多智能体协作系统", description: "让多个 AI Agent 协同工作——消息路由、信任关系、审计日志全链路打通", difficulty: "进阶", status: "待完成", team: "Agent 组" },
-  { id: "c07", number: "C07", title: "AI + 数据处理管道", description: "构建一条用 AI 驱动的数据处理管道——从原始数据采集到结构化输出", difficulty: "进阶", status: "待完成", team: "知识组" },
-  { id: "c08", number: "C08", title: "飞书/钉钉/微信集成", description: "将 AI Agent 接入企业 IM 平台，实现 Agent 对人通知和消息交互", difficulty: "进阶", status: "待完成", team: "平台组" },
-  { id: "c09", number: "C09", title: "真实项目交付", description: "为一个真实需求方交付可部署的产品——从需求分析到上线，完整走一遍", difficulty: "挑战", status: "待完成", team: "全员" },
-  { id: "c10", number: "C10", title: "平台重构与开源发布", description: "将 MVP 重构为可开源的生产级平台，含完整文档、部署指南和 CI/CD", difficulty: "挑战", status: "待完成", team: "全员" },
+  { id: "c01", number: "C01", title: "构建你的第一个 AI 助手", description: "用 AI 工具创建一个能与用户对话的 AI 助手——你不需要会编程，只需要会思考和指挥", difficulty: "入门", status: "已完成", team: "个人", github_repo: "https://github.com/a976xw7td/challenge-01-first-ai-assistant", deliverables: "助手定义文档、助手原型、协作记录、AAR复盘", rubric: "1. 问题理解(20) 2. AI使用质量(20) 3. 产物完整性(20) 4. 技术实现(20) 5. 复盘质量(20)", deadline: "2026-07-20" },
+  { id: "c02", number: "C02", title: "AI 结对编程入门", description: "体验 AI 辅助编程的完整流程——不是让 AI 替你写代码，而是让 AI 做你的结对编程伙伴", difficulty: "入门", status: "已完成", team: "个人", github_repo: "https://github.com/a976xw7td/challenge-02-ai-pair-programming", deliverables: "项目代码仓库、协作对话记录、自评报告、AAR复盘", rubric: "1. 问题理解(20) 2. AI使用质量(20) 3. 产物完整性(20) 4. 技术实现(20) 5. 复盘质量(20)", deadline: "2026-07-27" },
+  { id: "c03", number: "C03", title: "提示词工程实战", description: "系统学习提示词设计——从单轮对话到多轮上下文管理，让 AI 稳定输出高质量结果", difficulty: "入门", status: "已完成", team: "个人", github_repo: "https://github.com/a976xw7td/challenge-03-prompt-engineering", deliverables: "提示词库文档、效果对比报告、最佳实践总结、AAR复盘", rubric: "1. 问题理解(20) 2. AI使用质量(20) 3. 产物完整性(20) 4. 技术实现(20) 5. 复盘质量(20)", deadline: "2026-08-03" },
+  { id: "c04", number: "C04", title: "用 AI 做研究综述", description: "用 AI 工具快速梳理一个领域的文献、构建知识图谱、撰写综述报告", difficulty: "入门", status: "进行中", team: "个人", github_repo: "https://github.com/a976xw7td/challenge-04-ai-research-review", deliverables: "文献综述报告、知识图谱、引用来源清单、AAR复盘", rubric: "1. 问题理解(20) 2. AI使用质量(20) 3. 产物完整性(20) 4. 技术实现(20) 5. 复盘质量(20)", deadline: "2026-08-10" },
+  { id: "c05", number: "C05", title: "单智能体系统开发", description: "用 AI 辅助设计并实现一个完整功能的 AI Agent，包含身份定义、能力声明和接口设计", difficulty: "进阶", status: "待完成", team: "Agent 组", github_repo: "https://github.com/a976xw7td/challenge-05-single-agent", deliverables: "Agent 设计文档、可运行代码、测试用例、API 文档、AAR复盘", rubric: "1. 问题理解(20) 2. AI使用质量(20) 3. 产物完整性(20) 4. 技术实现(20) 5. 复盘质量(20)", deadline: "2026-08-17" },
+  { id: "c06", number: "C06", title: "多智能体协作系统", description: "让多个 AI Agent 协同工作——消息路由、信任关系、审计日志全链路打通", difficulty: "进阶", status: "待完成", team: "Agent 组", github_repo: "https://github.com/a976xw7td/challenge-06-multi-agent", deliverables: "多 Agent 架构文档、消息路由代码、集成测试、AAR复盘", rubric: "1. 问题理解(20) 2. AI使用质量(20) 3. 产物完整性(20) 4. 技术实现(20) 5. 复盘质量(20)", deadline: "2026-08-24" },
+  { id: "c07", number: "C07", title: "AI + 数据处理管道", description: "构建一条用 AI 驱动的数据处理管道——从原始数据采集到结构化输出", difficulty: "进阶", status: "待完成", team: "知识组", github_repo: "https://github.com/a976xw7td/challenge-07-data-pipeline", deliverables: "数据管道代码、处理流程图、输出样例、AAR复盘", rubric: "1. 问题理解(20) 2. AI使用质量(20) 3. 产物完整性(20) 4. 技术实现(20) 5. 复盘质量(20)", deadline: "2026-08-31" },
+  { id: "c08", number: "C08", title: "飞书/钉钉/微信集成", description: "将 AI Agent 接入企业 IM 平台，实现 Agent 对人通知和消息交互", difficulty: "进阶", status: "待完成", team: "平台组", github_repo: "https://github.com/a976xw7td/challenge-08-im-integration", deliverables: "集成代码、配置文档、演示视频、AAR复盘", rubric: "1. 问题理解(20) 2. AI使用质量(20) 3. 产物完整性(20) 4. 技术实现(20) 5. 复盘质量(20)", deadline: "2026-09-07" },
+  { id: "c09", number: "C09", title: "真实项目交付", description: "为一个真实需求方交付可部署的产品——从需求分析到上线，完整走一遍", difficulty: "挑战", status: "待完成", team: "全员", github_repo: "https://github.com/a976xw7td/challenge-09-real-project", deliverables: "需求文档、设计方案、可部署产品、用户手册、AAR复盘", rubric: "1. 问题理解(20) 2. AI使用质量(20) 3. 产物完整性(20) 4. 技术实现(20) 5. 复盘质量(20)", deadline: "2026-09-21" },
+  { id: "c10", number: "C10", title: "平台重构与开源发布", description: "将 MVP 重构为可开源的生产级平台，含完整文档、部署指南和 CI/CD", difficulty: "挑战", status: "待完成", team: "全员", github_repo: "https://github.com/a976xw7td/challenge-10-platform-rebuild", deliverables: "重构代码、单元测试、部署脚本、README、CONTRIBUTING、AAR复盘", rubric: "1. 问题理解(20) 2. AI使用质量(20) 3. 产物完整性(20) 4. 技术实现(20) 5. 复盘质量(20)", deadline: "2026-10-05" },
 ];
 
 // ============================================================
@@ -166,12 +186,12 @@ export const challenges: Challenge[] = [
 
 export const challengeDetails: ChallengeDetail[] = [
   {
-    ...challenges[0],
-    deliverables: ["助手定义文档", "可运行的助手原型", "人机协作记录", "AAR 复盘"],
+    id: "c01", number: "C01", title: "构建你的第一个 AI 助手", description: "用 AI 工具创建一个能与用户对话的 AI 助手——你不需要会编程，只需要会思考和指挥", difficulty: "入门", status: "已完成", team: "个人",
+    deadlines: ["助手定义文档", "可运行的助手原型", "人机协作记录", "AAR 复盘"],
     deadline: "2026-07-20",
-    skills: ["AI 对话设计", "提示词基础", "需求定义", "迭代思维"],
+    skillsList: ["AI 对话设计", "提示词基础", "需求定义", "迭代思维"],
     requirements: ["助手能完成至少 3 轮有意义的对话", "协作记录含 3 条以上迭代", "AAR 包含具体经历和反思"],
-    rubric: [
+    rubricItems: [
       { criterion: "拿来主义（借鉴已有方案）", weight: 20, description: "是否参考了已有方案并做了改进", levels: [
         { label: "未达标", points: 0, description: "从零开始，没有参考任何已有方案" },
         { label: "通过", points: 60, description: "参考了至少 1 个已有方案或示例" },
@@ -196,12 +216,12 @@ export const challengeDetails: ChallengeDetail[] = [
     resources: ["DeepSeek / ChatGPT / Claude 任一 AI 工具", "Hermes Agent Skill 模板", "单页 Web 应用示例"],
   },
   {
-    ...challenges[1],
-    deliverables: ["需求文档", "可运行程序", "代码审查记录", "AAR 复盘"],
+    id: "c02", number: "C02", title: "AI 结对编程入门", description: "体验 AI 辅助编程的完整流程——不是让 AI 替你写代码，而是让 AI 做你的结对编程伙伴", difficulty: "入门", status: "已完成", team: "个人",
+    deadlines: ["需求文档", "可运行程序", "代码审查记录", "AAR 复盘"],
     deadline: "2026-07-25",
-    skills: ["Python/JavaScript 基础", "AI 辅助编程", "代码阅读", "调试"],
+    skillsList: ["Python/JavaScript 基础", "AI 辅助编程", "代码阅读", "调试"],
     requirements: ["程序能正常运行", "代码有注释和 README", "审查记录含 AI 辅助的改进意见"],
-    rubric: [
+    rubricItems: [
       { criterion: "拿来主义", weight: 20, description: "是否参考了已有项目或模板", levels: [
         { label: "未达标", points: 0, description: "完全没有参考任何已有代码" },
         { label: "通过", points: 60, description: "参考了至少 1 个开源项目" },
@@ -226,12 +246,12 @@ export const challengeDetails: ChallengeDetail[] = [
     resources: ["Claude Code / Codex / Cursor", "Python 或 Node.js 环境", "GitHub 仓库模板"],
   },
   {
-    ...challenges[2],
-    deliverables: ["提示词库（至少 10 条）", "效果对比报告", "使用指南", "AAR 复盘"],
+    id: "c03", number: "C03", title: "提示词工程实战", description: "系统学习提示词设计——从单轮对话到多轮上下文管理，让 AI 稳定输出高质量结果", difficulty: "入门", status: "已完成", team: "个人",
+    deadlines: ["提示词库（至少 10 条）", "效果对比报告", "使用指南", "AAR 复盘"],
     deadline: "2026-08-01",
-    skills: ["Prompt Engineering", "上下文管理", "Few-shot 设计", "效果评估"],
+    skillsList: ["Prompt Engineering", "上下文管理", "Few-shot 设计", "效果评估"],
     requirements: ["提示词库覆盖 3+ 场景", "效果对比含改进前后输出", "指南能让别人直接用"],
-    rubric: [
+    rubricItems: [
       { criterion: "拿来主义", weight: 20, description: "是否参考了成熟的 Prompt 模板", levels: [
         { label: "未达标", points: 0, description: "所有提示词都是自己从零写的" },
         { label: "通过", points: 60, description: "参考了社区 Prompt 模板" },
@@ -256,12 +276,12 @@ export const challengeDetails: ChallengeDetail[] = [
     resources: ["Prompt Engineering Guide", "OpenAI Prompt 最佳实践", "Few-shot 示例集"],
   },
   {
-    ...challenges[3],
-    deliverables: ["文献综述报告", "知识图谱（思维导图）", "参考文献列表", "AAR 复盘"],
+    id: "c04", number: "C04", title: "用 AI 做研究综述", description: "用 AI 工具快速梳理一个领域的文献、构建知识图谱、撰写综述报告", difficulty: "入门", status: "进行中", team: "个人",
+    deadlines: ["文献综述报告", "知识图谱（思维导图）", "参考文献列表", "AAR 复盘"],
     deadline: "2026-08-05",
-    skills: ["文献检索", "AI 辅助阅读", "知识整理", "学术写作"],
+    skillsList: ["文献检索", "AI 辅助阅读", "知识整理", "学术写作"],
     requirements: ["综述覆盖 10+ 篇文献", "知识图谱展示领域结构", "参考文献格式规范"],
-    rubric: [
+    rubricItems: [
       { criterion: "拿来主义", weight: 20, description: "文献检索是否充分", levels: [
         { label: "未达标", points: 0, description: "只看了不到 5 篇文献" },
         { label: "通过", points: 60, description: "检索了 10+ 篇文献" },
@@ -286,12 +306,12 @@ export const challengeDetails: ChallengeDetail[] = [
     resources: ["Google Scholar / Semantic Scholar", "Zotero 文献管理", "Obsidian / Logseq 知识图谱工具"],
   },
   {
-    ...challenges[4],
-    deliverables: ["Agent 设计文档", "Agent 实现代码", "测试用例", "部署配置"],
+    id: "c05", number: "C05", title: "单智能体系统开发", description: "用 AI 辅助设计并实现一个完整功能的 AI Agent，包含身份定义、能力声明和接口设计", difficulty: "进阶", status: "待完成", team: "Agent 组",
+    deadlines: ["Agent 设计文档", "Agent 实现代码", "测试用例", "部署配置"],
     deadline: "2026-08-15",
-    skills: ["Agent 架构", "API 设计", "Prompt 编排", "MCP 协议"],
+    skillsList: ["Agent 架构", "API 设计", "Prompt 编排", "MCP 协议"],
     requirements: ["Agent 能独立完成任务", "有明确的输入输出接口", "含错误处理和日志"],
-    rubric: [
+    rubricItems: [
       { criterion: "拿来主义", weight: 20, description: "是否基于现有 Agent 框架", levels: [
         { label: "未达标", points: 0, description: "完全从零实现，没有参考任何框架" },
         { label: "通过", points: 60, description: "参考了至少 1 个 Agent 框架" },
@@ -316,12 +336,12 @@ export const challengeDetails: ChallengeDetail[] = [
     resources: ["Hermes Agent 文档", "MCP 协议规范", "Agent Manifest Schema"],
   },
   {
-    ...challenges[5],
-    deliverables: ["多 Agent 架构图", "消息路由配置", "集成测试", "审计日志"],
+    id: "c06", number: "C06", title: "多智能体协作系统", description: "让多个 AI Agent 协同工作——消息路由、信任关系、审计日志全链路打通", difficulty: "进阶", status: "待完成", team: "Agent 组",
+    deadlines: ["多 Agent 架构图", "消息路由配置", "集成测试", "审计日志"],
     deadline: "2026-08-22",
-    skills: ["多 Agent 编排", "消息队列", "信任关系", "审计"],
+    skillsList: ["多 Agent 编排", "消息队列", "信任关系", "审计"],
     requirements: ["至少 3 个 Agent 协作", "消息链路可追踪", "审计日志完整"],
-    rubric: [
+    rubricItems: [
       { criterion: "拿来主义", weight: 20, description: "是否参考了多 Agent 架构", levels: [
         { label: "未达标", points: 0, description: "没有参考任何多 Agent 设计" },
         { label: "通过", points: 60, description: "参考了至少 1 个多 Agent 案例" },
@@ -346,12 +366,12 @@ export const challengeDetails: ChallengeDetail[] = [
     resources: ["NSEAP Agent 协作流文档", "Message Envelope Schema", "Audit Log Schema"],
   },
   {
-    ...challenges[6],
-    deliverables: ["数据处理管道代码", "数据 Schema 定义", "处理结果样本", "性能测试报告"],
+    id: "c07", number: "C07", title: "AI + 数据处理管道", description: "构建一条用 AI 驱动的数据处理管道——从原始数据采集到结构化输出", difficulty: "进阶", status: "待完成", team: "知识组",
+    deadlines: ["数据处理管道代码", "数据 Schema 定义", "处理结果样本", "性能测试报告"],
     deadline: "2026-08-29",
-    skills: ["数据工程", "ETL 管道", "AI 数据增强", "Schema 设计"],
+    skillsList: ["数据工程", "ETL 管道", "AI 数据增强", "Schema 设计"],
     requirements: ["管道能处理真实数据", "有数据质量验证", "处理速度达标"],
-    rubric: [
+    rubricItems: [
       { criterion: "拿来主义", weight: 20, description: "是否参考了成熟的数据管道设计", levels: [
         { label: "未达标", points: 0, description: "管道设计完全自创" },
         { label: "通过", points: 60, description: "参考了至少 1 个 ETL 框架" },
@@ -376,12 +396,12 @@ export const challengeDetails: ChallengeDetail[] = [
     resources: ["Apache Airflow / Prefect", "Pandas / Polars", "Great Expectations 数据验证"],
   },
   {
-    ...challenges[7],
-    deliverables: ["IM 集成代码", "消息卡片模板", "Bot 配置指南", "用户反馈报告"],
+    id: "c08", number: "C08", title: "飞书/钉钉/微信集成", description: "将 AI Agent 接入企业 IM 平台，实现 Agent 对人通知和消息交互", difficulty: "进阶", status: "待完成", team: "平台组",
+    deadlines: ["IM 集成代码", "消息卡片模板", "Bot 配置指南", "用户反馈报告"],
     deadline: "2026-09-05",
-    skills: ["飞书 API", "Webhook", "消息卡片", "Bot 开发"],
+    skillsList: ["飞书 API", "Webhook", "消息卡片", "Bot 开发"],
     requirements: ["Agent 能通过 IM 收发消息", "消息格式符合平台规范", "有异常处理"],
-    rubric: [
+    rubricItems: [
       { criterion: "拿来主义", weight: 20, description: "是否参考了官方 SDK 和示例", levels: [
         { label: "未达标", points: 0, description: "没有看官方文档" },
         { label: "通过", points: 60, description: "基于官方 SDK 开发" },
@@ -406,12 +426,12 @@ export const challengeDetails: ChallengeDetail[] = [
     resources: ["飞书开放平台文档", "钉钉机器人文档", "企业微信 API"],
   },
   {
-    ...challenges[8],
-    deliverables: ["项目任务书", "可部署产品", "用户使用文档", "项目复盘报告"],
+    id: "c09", number: "C09", title: "真实项目交付", description: "为一个真实需求方交付可部署的产品——从需求分析到上线，完整走一遍", difficulty: "挑战", status: "待完成", team: "全员",
+    deadlines: ["项目任务书", "可部署产品", "用户使用文档", "项目复盘报告"],
     deadline: "2026-09-20",
-    skills: ["全栈开发", "需求分析", "项目交付", "客户沟通"],
+    skillsList: ["全栈开发", "需求分析", "项目交付", "客户沟通"],
     requirements: ["需求方确认过任务书", "产品能实际使用", "有完整的交付文档"],
-    rubric: [
+    rubricItems: [
       { criterion: "拿来主义", weight: 20, description: "是否基于成熟技术栈", levels: [
         { label: "未达标", points: 0, description: "技术选型无依据" },
         { label: "通过", points: 60, description: "选型有对比分析" },
@@ -436,12 +456,12 @@ export const challengeDetails: ChallengeDetail[] = [
     resources: ["需求分析模板", "项目管理工具", "部署平台（Vercel / 服务器）"],
   },
   {
-    ...challenges[9],
-    deliverables: ["开源代码仓库", "完整文档体系", "CI/CD 流程", "社区贡献指南"],
+    id: "c10", number: "C10", title: "平台重构与开源发布", description: "将 MVP 重构为可开源的生产级平台，含完整文档、部署指南和 CI/CD", difficulty: "挑战", status: "待完成", team: "全员",
+    deadlines: ["开源代码仓库", "完整文档体系", "CI/CD 流程", "社区贡献指南"],
     deadline: "2026-10-01",
-    skills: ["开源协作", "CI/CD", "文档工程", "社区运营"],
+    skillsList: ["开源协作", "CI/CD", "文档工程", "社区运营"],
     requirements: ["代码开源且 License 清晰", "文档覆盖安装/使用/贡献", "CI 全绿"],
-    rubric: [
+    rubricItems: [
       { criterion: "拿来主义", weight: 20, description: "是否参考了优秀开源项目", levels: [
         { label: "未达标", points: 0, description: "没有参考任何开源项目" },
         { label: "通过", points: 60, description: "参考了至少 1 个项目结构" },
@@ -476,11 +496,11 @@ export function getChallengeDetail(id: string): ChallengeDetail | undefined {
 // ============================================================
 
 export const students: StudentProfile[] = [
-  { id: "s01", name: "张浩", github: "a976xw7td", email: "2461681460@qq.com", studentClass: "AI+X Vibe Coding 实验班", completedChallenges: 3, totalChallenges: 10, skills: ["TypeScript", "React", "Next.js", "Python", "Agent 架构", "飞书集成", "本体工程", "KSTAR 闭环"] },
-  { id: "s02", name: "李四", github: "lisi-dev", email: "lisi@example.com", studentClass: "Elite20", completedChallenges: 2, totalChallenges: 10, skills: ["Python", "FastAPI", "PostgreSQL"] },
-  { id: "s03", name: "王五", github: "wangwu-dev", email: "wangwu@example.com", studentClass: "Elite20", completedChallenges: 1, totalChallenges: 10, skills: ["Vue.js", "JavaScript"] },
-  { id: "s04", name: "赵六", github: "zhaoliu-dev", email: "zhaoliu@example.com", studentClass: "Elite20", completedChallenges: 3, totalChallenges: 10, skills: ["Rust", "WebAssembly", "TypeScript"] },
-  { id: "s05", name: "陈七", github: "chenqi-dev", email: "chenqi@example.com", studentClass: "Elite20", completedChallenges: 0, totalChallenges: 10, skills: ["Java", "Spring Boot"] },
+  { id: "s01", name: "张浩", github: "a976xw7td", email: "2461681460@qq.com", studentClass: "AI+X Vibe Coding 实验班", completedChallenges: 3, totalChallenges: 10, skillsList: ["TypeScript", "React", "Next.js", "Python", "Agent 架构", "飞书集成", "本体工程", "KSTAR 闭环"] },
+  { id: "s02", name: "李四", github: "lisi-dev", email: "lisi@example.com", studentClass: "Elite20", completedChallenges: 2, totalChallenges: 10, skillsList: ["Python", "FastAPI", "PostgreSQL"] },
+  { id: "s03", name: "王五", github: "wangwu-dev", email: "wangwu@example.com", studentClass: "Elite20", completedChallenges: 1, totalChallenges: 10, skillsList: ["Vue.js", "JavaScript"] },
+  { id: "s04", name: "赵六", github: "zhaoliu-dev", email: "zhaoliu@example.com", studentClass: "Elite20", completedChallenges: 3, totalChallenges: 10, skillsList: ["Rust", "WebAssembly", "TypeScript"] },
+  { id: "s05", name: "陈七", github: "chenqi-dev", email: "chenqi@example.com", studentClass: "Elite20", completedChallenges: 0, totalChallenges: 10, skillsList: ["Java", "Spring Boot"] },
 ];
 
 // ============================================================

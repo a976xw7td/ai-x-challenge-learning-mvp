@@ -258,6 +258,7 @@ function normalizeChallenge(record: { record_id: string; fields: Record<string, 
     skills: asString(field(f, "skills")),
     created_at: asString(field(f, "created_at")),
     updated_at: asString(field(f, "updated_at")),
+    github_repo: asString(f["GitHub仓库"] ?? f["github_repo"]),
   };
 }
 

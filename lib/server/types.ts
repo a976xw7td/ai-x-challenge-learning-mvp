@@ -42,6 +42,7 @@ export type Challenge = {
   skills?: string;
   created_at?: string;
   updated_at?: string;
+  github_repo?: string;
 };
 
 export type SubmissionInput = {

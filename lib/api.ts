@@ -15,6 +15,12 @@ type BackendChallenge = {
   objective?: string;
   deadline?: string;
   status?: string;
+  deliverables?: string;
+  rubric?: string;
+  skills?: string;
+  github_repo?: string;
+  learning_objectives?: string;
+  required_deliverables?: string;
 };
 
 type BackendPortfolioItem = {
@@ -45,6 +51,15 @@ export async function fetchChallenges(): Promise<{ items: Challenge[]; live: boo
       difficulty: "进阶",
       status: c.status === "closed" ? "已完成" : "进行中",
       team: "",
+      deliverables: c.deliverables,
+      rubric: c.rubric,
+      deadline: c.deadline,
+      skills: c.skills,
+      github_repo: c.github_repo,
+      objective: c.objective,
+      brief: c.brief,
+      learning_objectives: c.learning_objectives,
+      required_deliverables: c.required_deliverables,
     }));
     return { items, live: true };
   } catch {
