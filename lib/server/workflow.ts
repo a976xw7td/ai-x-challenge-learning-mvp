@@ -250,7 +250,7 @@ export async function submitChallengeProject(
         auditId: audit.traceId,
       });
       audit.log(SUBMISSION_TASK_AGENT, "route_to_review_task_agent", reviewEnvelope.message_id);
-      aiEvaluation = await ai.evaluateSubmission({ student, challenge, submission: input, githubCheck }, challenge.rubric);
+      aiEvaluation = await ai.evaluateSubmission({ student, challenge, submission: input, githubCheck });
       audit.log(REVIEW_TASK_AGENT, "generate_ai_evaluation", challenge.challenge_id, {
         after_state: { scoreTotal: aiEvaluation.scoreTotal },
       });
@@ -268,7 +268,7 @@ export async function submitChallengeProject(
       routingStatus = "routed_to_peer";
     } else {
       // teacher_and_peer: AI eval + peer
-      aiEvaluation = await ai.evaluateSubmission({ student, challenge, submission: input, githubCheck }, challenge.rubric);
+      aiEvaluation = await ai.evaluateSubmission({ student, challenge, submission: input, githubCheck });
       audit.log(REVIEW_TASK_AGENT, "generate_ai_evaluation", challenge.challenge_id, {
         after_state: { scoreTotal: aiEvaluation.scoreTotal },
       });
