@@ -93,8 +93,15 @@ class RedisBusAdapter implements BusAdapter {
     handler: (envelope: MessageEnvelope, id: string) => Promise<void>,
     signal?: AbortSignal,
   ): Promise<void> {
-    const redis = getRedis();
-    if (!redis) return;
+    // Wait for Redis to be ready before entering the consume loop.
+    // getRedis() returns null if the client is still connecting or unavailable;
+    // this retries every second until Redis is ready or signal is aborted.
+    let redis = getRedis();
+    while (!redis && !signal?.aborted) {
+      await new Promise((r) => setTimeout(r, 1000));
+      redis = getRedis();
+    }
+    if (!redis) return; // signal aborted
 
     // Ensure consumer group exists
     try {
