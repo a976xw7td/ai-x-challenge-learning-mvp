@@ -74,13 +74,7 @@ export type GitHubCheck = {
 
 export type AiEvaluation = {
   scoreTotal: number;
-  scores: {
-    problemUnderstanding: number;
-    aiUsage: number;
-    artifactCompleteness: number;
-    technicalExecution: number;
-    reflectionQuality: number;
-  };
+  scores: Record<string, number>;
   strengths: string;
   weaknesses: string;
   suggestions: string;
