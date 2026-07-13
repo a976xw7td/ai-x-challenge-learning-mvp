@@ -95,7 +95,7 @@ export default function ProfilePage() {
         header_name: "x-api-key",
       },
       endpoints: {
-        submit: { method: "POST", path: "/api/hermes", description: "提交作业" },
+        submit: { method: "POST", path: "/api/nseap", description: "提交作业" },
         health: { method: "GET", path: "/api/health", description: "健康检查" },
         agents: { method: "GET", path: "/api/agents", description: "Agent 列表" },
       },
@@ -121,7 +121,7 @@ export default function ProfilePage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `hermes-config-${user.person}.json`;
+    a.download = `nseap-config-${user.person}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [apiKey, user]);
@@ -174,7 +174,7 @@ export default function ProfilePage() {
         <div className="flex items-center gap-2 mb-3">
           <Key className="h-5 w-5 text-amber-500" />
           <h2 className="text-base font-semibold text-gray-900">API Key</h2>
-          <span className="text-xs text-gray-400">用于 Hermes / 命令行提交</span>
+          <span className="text-xs text-gray-400">用于 Companion Agent / 命令行提交</span>
         </div>
 
         {!apiKey ? (
@@ -238,7 +238,7 @@ export default function ProfilePage() {
           </div>
         )}
         <p className="mt-2 text-xs text-gray-400">
-          下载配置文件到 Hermes 目录即可使用。切勿分享给他人。
+          下载配置文件到 Companion Agent 目录即可使用。切勿分享给他人。
         </p>
       </div>
 
