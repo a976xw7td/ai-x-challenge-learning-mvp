@@ -11,7 +11,10 @@ let _redisFailedAt = 0;
 const REDIS_RETRY_WINDOW_MS = 30_000; // retry connection after 30s
 
 export function getRedis(): Redis | null {
-  if (_redis) return _redis;
+  if (_redis && _redis.status === "ready") return _redis;
+  // Client exists but not connected (connecting/reconnecting/wait) —
+  // treat as unavailable so callers gracefully fall back.
+  if (_redis && _redis.status !== "ready") return null;
 
   // BUGFIX: Don't permanently disable Redis. After a cool-down window,
   // allow reconnection attempts so transient failures self-heal.
@@ -34,7 +37,7 @@ export function getRedis(): Redis | null {
       enableOfflineQueue: false,  // fail fast on disconnect — no command queueing
       connectTimeout: 3_000,       // 3s cap on connection attempts
       retryStrategy(times) {
-        if (times > 3) {
+        if (times > 10) {
           _redisUnavailable = true;
           _redisFailedAt = Date.now();
           return null; // stop retrying
@@ -44,8 +47,8 @@ export function getRedis(): Redis | null {
     });
 
     _redis.on("error", () => {
-      _redisUnavailable = true;
-      _redisFailedAt = Date.now();
+      // Don't set _redisUnavailable here — transient errors happen.
+      // Only mark unavailable when retryStrategy gives up.
       _redis = null;
     });
 
@@ -59,10 +62,7 @@ export function getRedis(): Redis | null {
 
 export async function redisPing(): Promise<{ ok: boolean; ms?: number; error?: string }> {
   const redis = getRedis();
-  if (!redis) return { ok: false, error: "REDIS_URL not configured or unavailable" };
-  // With enableOfflineQueue:false, commands sent before connection reject.
-  // Pretend "not ready yet" is unavailable for health-check purposes.
-  if (redis.status !== "ready") return { ok: false, error: `Redis not ready (status: ${redis.status})` };
+  if (!redis) return { ok: false, error: "Redis not available" };
   try {
     const start = Date.now();
     const result = await redis.ping();

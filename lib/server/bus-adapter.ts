@@ -70,12 +70,7 @@ class RedisBusAdapter implements BusAdapter {
   private readonly MAX_LEN = 10_000;
 
   isAvailable(): boolean {
-    const redis = getRedis();
-    if (!redis) return false;
-    // Only "ready" means the connection is healthy and writable.
-    // "wait"/"connecting" = not yet ready (lazyConnect), don't pass through.
-    // "reconnecting"/"close"/"end" = truly down, fast-fail to 503.
-    return redis.status === "ready";
+    return getRedis() !== null;  // getRedis() now checks status === "ready"
   }
 
   async publish(envelope: MessageEnvelope): Promise<string | null> {
