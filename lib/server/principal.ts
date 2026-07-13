@@ -9,8 +9,9 @@ import { resolveAgentApiKey, resolveStudentApiKey } from "./agent-auth";
 export interface ServicePrincipal {
   person: string;
   org: string;
-  role: string; // "student" | "teacher" | "agent" | "admin" | "system" | "ta" | "judge" | "observer"
-  class_id?: string; // T3: multi-class support
+  role: string;
+  class_id?: string;
+  name?: string;
 }
 
 const SESSION_COOKIE = "nseap_session";
@@ -64,6 +65,7 @@ export async function getPrincipal(): Promise<ServicePrincipal | null> {
           person: payload.person,
           org: payload.org || "elite20",
           role: payload.role || "student",
+          name: payload.name,
         };
       }
     }

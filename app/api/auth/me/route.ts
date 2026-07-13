@@ -9,9 +9,11 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "未登录" }, { status: 401 });
   }
 
-  // Look up user info from appropriate table
+  // Use name from session token first (works for TEACHER_IDS env-var users too)
   let name: string | undefined;
   let class_id: string | undefined;
+
+  // Try Feishu table lookup for richer data
   try {
     if (principal.role === "student" || principal.role === "agent") {
       const student = await getStudentById(principal.person);
@@ -25,16 +27,15 @@ export async function GET() {
       if (admin) name = admin.name;
     }
   } catch {
-    // Not found or table unavailable — use principal data only
+    // Not found or table unavailable — fall back to session name
   }
 
-  // T07/T08: api_key is NEVER returned in /me or login responses
   return NextResponse.json({
     ok: true,
     person: principal.person,
     role: principal.role,
     org: principal.org,
-    name,
+    name: name || principal.name,
     class_id,
   });
 }

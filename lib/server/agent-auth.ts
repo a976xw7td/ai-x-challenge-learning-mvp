@@ -72,22 +72,6 @@ export async function resolveStudentApiKey(apiKey: string): Promise<ServicePrinc
         _studentKeyCache.set(keyHash, { sp, ts: Date.now() });
         return sp;
       }
-      // Check previous hash (rotated, within 30-day grace)
-      if ((s as Record<string, unknown>).api_key_hash_prev === keyHash) {
-        const rotatedAt = (s as Record<string, unknown>).api_key_rotated_at as string | undefined;
-        if (rotatedAt) {
-          const daysSinceRotation = (Date.now() - new Date(rotatedAt).getTime()) / 86400000;
-          if (daysSinceRotation <= 30) {
-            const sp: ServicePrincipal = {
-              person: `student-companion-${s.student_id}`,
-              org: "elite20",
-              role: "agent",
-            };
-            _studentKeyCache.set(keyHash, { sp, ts: Date.now() });
-            return sp;
-          }
-        }
-      }
     }
   } catch {
     // Feishu unavailable — skip

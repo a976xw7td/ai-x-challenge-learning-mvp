@@ -52,16 +52,28 @@ export async function POST(request: Request) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes("not found") || msg.includes("Student not found")) {
+          // Not in any Feishu table — check TEACHER_IDS env var as last resort
+          const teacherIds = (process.env.TEACHER_IDS || "")
+            .split(",")
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean);
+          if (teacherIds.includes(personId.toLowerCase())) {
+            // Accept login with provided name; role will be determined by determineRole()
+            identity = { name }; // trust the name they typed
+            lookupTable = "env";
+          } else {
+            return NextResponse.json(
+              { ok: false, error: "ID不存在或未导入系统" },
+              { status: 401 },
+            );
+          }
+        } else {
+          console.error("[login] lookup error:", msg);
           return NextResponse.json(
-            { ok: false, error: "ID不存在或未导入系统" },
-            { status: 401 },
+            { ok: false, error: "系统暂时无法验证身份，请稍后重试" },
+            { status: 503 },
           );
         }
-        console.error("[login] lookup error:", msg);
-        return NextResponse.json(
-          { ok: false, error: "系统暂时无法验证身份，请稍后重试" },
-          { status: 503 },
-        );
       }
     }
 
@@ -90,6 +102,7 @@ export async function POST(request: Request) {
       person: personId,
       org: "elite20",
       role,
+      name: identity.name,
     });
 
     // T07: Determine redirect based on role
