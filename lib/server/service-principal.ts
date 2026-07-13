@@ -50,7 +50,6 @@ const AGENT_TO_SP: Record<string, ServicePrincipal> = {
     person: "student-companion-nseap",
     org: "elite20",
     role: "agent",
-    allowed_message_types: ["submission_request"],
   },
   // Legacy alias
   "student-companion-hermes": {
