@@ -12,9 +12,20 @@ const REDIS_RETRY_WINDOW_MS = 30_000; // retry connection after 30s
 
 export function getRedis(): Redis | null {
   if (_redis && _redis.status === "ready") return _redis;
-  // Client exists but not connected (connecting/reconnecting/wait) —
-  // treat as unavailable so callers gracefully fall back.
-  if (_redis && _redis.status !== "ready") return null;
+  if (_redis) {
+    // Terminal state ("end": retryStrategy gave up, no more reconnects) —
+    // dispose the dead client so the cool-down/recreate path below can run.
+    // Don't rely on the error event having fired; make recovery explicit.
+    if (_redis.status === "end") {
+      try { _redis.disconnect(); } catch { /* already dead */ }
+      _redis = null;
+      // fall through to cool-down check / recreation
+    } else {
+      // Not connected yet (connecting/reconnecting/wait) —
+      // treat as unavailable so callers gracefully fall back.
+      return null;
+    }
+  }
 
   // BUGFIX: Don't permanently disable Redis. After a cool-down window,
   // allow reconnection attempts so transient failures self-heal.
@@ -47,9 +58,19 @@ export function getRedis(): Redis | null {
     });
 
     _redis.on("error", () => {
-      // Don't set _redisUnavailable here — transient errors happen.
-      // Only mark unavailable when retryStrategy gives up.
+      // Disconnect the dead client before dropping the reference — otherwise
+      // its background reconnect loop keeps running (client/fd leak, one per
+      // failed request burst). disconnect() may emit one more error; the ?.
+      // and try/catch make re-entry harmless (_redis is already null then).
+      try { _redis?.disconnect(); } catch { /* noop */ }
       _redis = null;
+      // Short cool-down (3s) so a request burst doesn't spawn a fresh client
+      // per request while Redis is down. The full 30s window is reserved for
+      // retryStrategy giving up (it overwrites _redisFailedAt with Date.now()).
+      if (!_redisUnavailable) {
+        _redisUnavailable = true;
+        _redisFailedAt = Date.now() - REDIS_RETRY_WINDOW_MS + 3_000;
+      }
     });
 
     return _redis;
