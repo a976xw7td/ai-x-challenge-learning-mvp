@@ -18,8 +18,10 @@ function loadKeyMap(): Map<string, string> {
   if (!raw) return _keyMap;
 
   for (const pair of raw.split(",")) {
-    const [agentId, ...keyParts] = pair.trim().split(":");
-    const key = keyParts.join(":");
+    const p = pair.trim();
+    const idx = p.indexOf(":");
+    const agentId = p.substring(0, idx);
+    const key = p.substring(idx + 1);
     if (agentId && key) {
       _keyMap.set(key.trim(), agentId.trim());
     }
@@ -34,9 +36,19 @@ function loadKeyMap(): Map<string, string> {
 // ---- Principal resolution ----
 
 export function resolveAgentApiKey(apiKey: string): ServicePrincipal | null {
-  const keyMap = loadKeyMap();
-  const agentId = keyMap.get(apiKey);
-  if (agentId) return agentToSP(agentId);
+  // Parse directly from process.env each time to avoid Next.js module caching issues
+  const raw = optionalEnv("AGENT_API_KEYS");
+  if (!raw) return null;
+  
+  for (const pair of raw.split(",")) {
+    const p = pair.trim();
+    const idx = p.indexOf(":");
+    const agentId = p.substring(0, idx);
+    const key = p.substring(idx + 1);
+    if (key.trim() === apiKey && agentId) {
+      return agentToSP(agentId.trim());
+    }
+  }
   return null;
 }
 

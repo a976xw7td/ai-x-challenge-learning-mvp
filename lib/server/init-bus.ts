@@ -69,12 +69,16 @@ async function handleManualReviewAdjustment(envelope: MessageEnvelope): Promise<
       submissionId: string;
       submissionRecordId: string;
       studentId: string;
+      challengeId?: string;
       action: "accept" | "return";
       score: number;
       feedback: string;
     };
 
-    const result = await teacherFinalizeReview(input);
+    const result = await teacherFinalizeReview({
+      ...input,
+      challengeId: input.challengeId || "",
+    });
 
     await updateTaskStatus(taskId, result.ok ? "completed" : "failed", {
       ok: result.ok,

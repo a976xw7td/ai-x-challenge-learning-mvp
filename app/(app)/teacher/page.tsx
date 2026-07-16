@@ -274,7 +274,15 @@ export default function TeacherPage() {
                   </td>
                   <td className="px-5 py-3 text-center text-gray-700">{cs.avgScore || "—"}</td>
                   <td className="px-5 py-3 text-center">
-                    <Eye className="inline h-4 w-4 text-gray-400" />
+                    {cs.challenge.github_repo ? (
+                      <a href={cs.challenge.github_repo} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-gray-400 hover:text-gray-700 transition-colors"
+                        onClick={(e) => e.stopPropagation()} title="查看挑战资料">
+                        <Github className="h-4 w-4" />
+                      </a>
+                    ) : (
+                      <Eye className="inline h-4 w-4 text-gray-400" />
+                    )}
                   </td>
                 </tr>
               ))}

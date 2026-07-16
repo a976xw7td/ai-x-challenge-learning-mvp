@@ -22,6 +22,10 @@ export async function POST(request: Request) {
     // T03: Row-level permission — use bound student identity (works for both student and agent roles)
     const boundStudentId = getBoundStudentId(principal);
     if (boundStudentId !== null) {
+      // Auto-fill studentId from session if not provided
+      if (!input.studentId) {
+        input.studentId = boundStudentId;
+      }
       // Student or student-companion agent: can only submit as themselves
       if (input.studentId !== boundStudentId) {
         const audit = new AuditTrail();

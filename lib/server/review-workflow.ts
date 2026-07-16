@@ -17,6 +17,7 @@ export interface TeacherReviewInput {
   submissionId: string;
   submissionRecordId: string; // feishu record_id for update
   studentId: string;
+  challengeId: string;
   action: "accept" | "return";
   score: number;
   feedback: string;
@@ -64,7 +65,7 @@ export async function teacherFinalizeReview(input: TeacherReviewInput): Promise<
     const evaluation = await feishu.createEvaluation({
       submission_id: input.submissionId,
       student_id: input.studentId,
-      challenge_id: "", // BUGFIX: teacher review now records evaluator identity and challenge
+      challenge_id: input.challengeId,
       evaluator_type: "teacher",
       evaluator_id: WEBAPP_FALLBACK_TEACHER_AGENT,
       score_total: input.score,
@@ -108,18 +109,14 @@ export async function teacherFinalizeReview(input: TeacherReviewInput): Promise<
 
     // 5. Notify student (T8)
     const actionText = input.action === "accept" ? "通过 ✅" : "需要修改 ⚠️";
-    notifyStudent(input.studentId,
-      `📢 你的提交「${input.submissionId}」教师终评结果：
-${actionText}
-分数：${input.score}/100
-评语：${input.feedback}`
-    ).then(async (result) => {
-      if (!result.ok) {
-        const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: result.error });
-        enqueue([entry]);
-        await flush();
-      }
-    });
+    const notifyResult = await notifyStudent(input.studentId,
+      `📢 你的提交教师终评结果：\n${actionText}\n分数：${input.score}/100\n评语：${input.feedback}`
+    );
+    if (!notifyResult.ok) {
+      const entry = audit.log(SUBMISSION_TASK_AGENT, "notify_failed", input.studentId, { error_trace: notifyResult.error });
+      enqueue([entry]);
+      await flush();
+    }
 
     enqueue(audit.entries);
     await flush();

@@ -4,7 +4,8 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies, headers } from "next/headers";
 import { optionalEnv } from "./env";
-import { resolveAgentApiKey, resolveStudentApiKey } from "./agent-auth";
+import { resolveStudentApiKey } from "./agent-auth";
+import { agentToSP } from "./service-principal";
 
 export interface ServicePrincipal {
   person: string;
@@ -81,15 +82,26 @@ export async function getPrincipal(): Promise<ServicePrincipal | null> {
 export async function getAgentPrincipal(): Promise<ServicePrincipal | null> {
   try {
     const hdrs = await headers();
-    const apiKey = hdrs.get("x-api-key");
+    const apiKey = hdrs.get("x-api-key")?.trim();
     if (!apiKey) return null;
 
-    // Try hardcoded keys first (WorkBuddy/Hermes)
-    const sp = resolveAgentApiKey(apiKey.trim());
-    if (sp) return { person: sp.person, org: sp.org, role: sp.role };
+    // Try hardcoded keys — INLINE lookup to bypass any module caching issues
+    const raw = optionalEnv("AGENT_API_KEYS");
+    if (raw) {
+      for (const pair of raw.split(",")) {
+        const p = pair.trim();
+        const idx = p.indexOf(":");
+        const agentId = p.substring(0, idx);
+        const key = p.substring(idx + 1);
+        if (key.trim() === apiKey && agentId) {
+          const sp = agentToSP(agentId.trim());
+          if (sp) return { person: sp.person, org: sp.org, role: sp.role };
+        }
+      }
+    }
 
     // Try Students table keys (auto-generated for each student)
-    const studentSp = await resolveStudentApiKey(apiKey.trim());
+    const studentSp = await resolveStudentApiKey(apiKey);
     if (studentSp) {
       // Auto-register dynamic student agent in registry if not already known
       const { lookupAgent, registerAgent } = await import("./agent-registry");

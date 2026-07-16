@@ -52,19 +52,24 @@ async function sendImMessage(
     const appSecret = bot?.appSecret || requireEnv("FEISHU_APP_SECRET");
     const token = await getTenantToken(appId, appSecret);
 
+    const contentStr = JSON.stringify({ text });
+    const bodyObj = {
+      receive_id: receiveId,
+      msg_type: "text",
+      content: contentStr,
+    };
+    console.log(`[notify] sending to ${receiveId} via ${bot ? "自有Bot" : "系统Bot"} appId=${appId.substring(0,10)}...`);
+    console.log(`[notify] content=${contentStr.substring(0,80)}`);
+
     const resp = await fetch(
-      "https://open.feishu.cn/open-apis/im/v1/messages",
+      "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id",
       {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          receive_id: receiveId,
-          msg_type: "text",
-          content: JSON.stringify({ text }),
-        }),
+        body: JSON.stringify(bodyObj),
       },
     );
 
@@ -72,8 +77,10 @@ async function sendImMessage(
     if (resp.ok && payload.code === 0) {
       return { ok: true };
     }
+    console.warn(`[notify] sendImMessage failed: code=${payload.code} msg=${payload.msg} http=${resp.status}`);
     return { ok: false, error: payload.msg || resp.statusText };
   } catch (err) {
+    console.warn("[notify] sendImMessage failed:", err instanceof Error ? err.message : String(err));
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }

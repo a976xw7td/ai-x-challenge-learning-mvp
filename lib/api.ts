@@ -43,7 +43,15 @@ export async function fetchChallenges(): Promise<{ items: Challenge[]; live: boo
     const data = await res.json();
     // BUGFIX: empty list is valid (no published challenges yet), don't fall back to mock
     if (!data.ok || !Array.isArray(data.challenges)) throw new Error();
-    const items: Challenge[] = (data.challenges as BackendChallenge[]).map((c, i) => ({
+    // Sort by challenge number: extract code (C1, C2, C2A, C10H, etc.)
+    const order = ["C1","C2","C2A","C2G","C3","C3C","C4","C4A","C4B","C4C","C4D","C5","C5A","C6","C6A","C7","C8","C9","C10","C10H"];
+    const sorted = [...(data.challenges as BackendChallenge[])].sort((a, b) => {
+      const extractCode = (title: string) => title.match(/^C\d+[A-Z]?/)?.[0] || "";
+      const idxA = order.indexOf(extractCode(a.title));
+      const idxB = order.indexOf(extractCode(b.title));
+      return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+    });
+    const items: Challenge[] = sorted.map((c, i) => ({
       id: c.challenge_id,
       number: `Challenge ${String(i + 1).padStart(2, "0")}`,
       title: c.title,

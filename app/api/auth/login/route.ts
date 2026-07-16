@@ -30,7 +30,7 @@ export async function POST(request: Request) {
         identity = admin;
         lookupTable = "admins";
       }
-    } catch { /* table not ready */ }
+    } catch (err) { console.warn("[login] lookup failed:", err instanceof Error ? err.message : String(err)); }
 
     // 2. Try Teachers
     if (!identity) {
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
           identity = teacher;
           lookupTable = "teachers";
         }
-      } catch { /* table not ready */ }
+      } catch (err) { console.warn("[login] lookup failed:", err instanceof Error ? err.message : String(err)); }
     }
 
     // 3. Try Students

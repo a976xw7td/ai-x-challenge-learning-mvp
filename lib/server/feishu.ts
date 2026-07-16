@@ -52,6 +52,7 @@ const FEISHU_FIELD_NAMES: Record<string, string> = {
   teacher_id: "教师ID",
   teacher_agent_id: "教师AgentID",
   feishu_group_id: "飞书群ID",
+  feishu_open_id: "feishu_open_id",
   airtable_record_id: "Airtable记录ID",
   ontology_nodes: "本体节点",
   learning_objectives: "学习目标",

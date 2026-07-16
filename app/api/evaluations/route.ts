@@ -202,6 +202,7 @@ export async function POST(request: Request) {
       submissionId,
       submissionRecordId: submission.recordId,
       studentId: submission.student_id,
+      challengeId: submission.challenge_id,
       action,
       score: scoreNum,
       feedback: String(feedback),

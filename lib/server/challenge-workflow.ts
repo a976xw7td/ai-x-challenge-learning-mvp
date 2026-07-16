@@ -88,6 +88,8 @@ export async function publishChallenge(input: PublishChallengeInput): Promise<Pu
       deadline: input.deadline,
       status: "published",
       created_by: WEBAPP_FALLBACK_TEACHER_AGENT,
+      teacher_agent_id: WEBAPP_FALLBACK_TEACHER_AGENT,
+      created_at: new Date().toISOString(),
     });
     audit.log(SUBMISSION_TASK_AGENT, "create_challenge_record", String(challenge.challenge_id));
 

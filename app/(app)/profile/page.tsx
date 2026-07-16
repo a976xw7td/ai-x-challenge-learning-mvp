@@ -128,7 +128,7 @@ export default function ProfilePage() {
     const config = {
       agent_id: `student-companion-${user.person}`,
       api_key: apiKey,
-      server: window.location.origin,
+      server: process.env.NEXT_PUBLIC_SERVER_URL || window.location.origin,
       auth: {
         method: "header",
         header_name: "x-api-key",

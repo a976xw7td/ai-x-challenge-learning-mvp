@@ -91,16 +91,15 @@ async function allocatePeers(
         });
       });
 
-      // Notify peer via Feishu Bot
-      notifyStudent(peer.student_id,
+      // Notify peer via Feishu Bot (await to ensure audit is captured before flush)
+      const result = await notifyStudent(peer.student_id,
         `👀 同学互评邀请\n\n${submitter.name} 提交了项目「${projectTitle}」，邀请你进行同伴评审。\n\n请登录学习平台，在「仪表盘 → 待我评审」中查看详情并提交你的评分和反馈。`
-      ).then((result) => {
-        if (!result.ok) {
-          audit.log(SUBMISSION_TASK_AGENT, "peer_notify_failed", peer.student_id, {
-            error_trace: result.error,
-          });
-        }
-      });
+      );
+      if (!result.ok) {
+        audit.log(SUBMISSION_TASK_AGENT, "peer_notify_failed", peer.student_id, {
+          error_trace: result.error,
+        });
+      }
     }
   } catch (err) {
     audit.log(SUBMISSION_TASK_AGENT, "peer_allocation_error", submissionId, {
@@ -350,6 +349,7 @@ export async function submitChallengeProject(
         student_id: student.student_id,
         challenge_id: challenge.challenge_id,
         evaluator_type: "ai",
+        evaluator_id: REVIEW_TASK_AGENT,
         score_total: aiEvaluation.scoreTotal,
         scores_json: JSON.stringify(aiEvaluation.scores, null, 2),
         strengths: aiEvaluation.strengths,
