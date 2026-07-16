@@ -16,7 +16,7 @@ import type { SubmissionInput } from "./types";
 // ---- Handler implementations ----
 
 async function handleSubmissionRequest(envelope: MessageEnvelope): Promise<void> {
-  const taskId = envelope.audit_trace_pointer;
+  const taskId = (envelope.payload as Record<string, unknown>)?._taskId as string || envelope.audit_trace_pointer;
   console.log(`[bus] Processing submission_request: task=${taskId}`);
 
   await updateTaskStatus(taskId, "processing");

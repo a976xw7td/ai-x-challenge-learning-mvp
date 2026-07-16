@@ -28,6 +28,7 @@ const navItems: NavItem[] = [
   { href: "/lms", label: "LMS 学习管理", icon: GraduationCap, roles: ["student", "teacher", "admin"] },
   { href: "/challenges/C01", label: "Challenge 详情", icon: BookOpen, roles: ["student", "teacher", "admin"] },
   { href: "/submit", label: "提交 Challenge", icon: Send, roles: ["student"] },
+  { href: "/submissions", label: "提交记录", icon: BookOpen, roles: ["student", "teacher", "admin"] },
   { href: "/portfolio", label: "作品集", icon: Award, roles: ["student", "teacher", "admin"] },
   { href: "/teacher", label: "教师控制台", icon: Users, roles: ["teacher", "admin", "ta"] },
   { href: "/profile", label: "个人中心", icon: User, roles: ["student", "teacher", "admin", "ta"] },

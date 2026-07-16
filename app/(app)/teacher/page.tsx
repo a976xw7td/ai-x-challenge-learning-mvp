@@ -6,7 +6,8 @@ import {
   Users, CheckCircle2, Clock, Search, ChevronRight,
   Star, Download, Github, Eye,
 } from "lucide-react";
-import { fetchSubmissions, fetchStudents, fetchChallenges, type SubmissionListItem, type StudentInfo } from "@/lib/api";
+import { fetchSubmissions, fetchStudents, fetchChallenges, fetchSubmissionById, type SubmissionListItem, type StudentInfo, type EvaluationData } from "@/lib/api";
+import { formatDateShort } from "@/lib/format";
 import type { Challenge } from "@/lib/data";
 
 interface SubmissionRow {
@@ -45,6 +46,7 @@ export default function TeacherPage() {
   const [reviewFeedback, setReviewFeedback] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewResult, setReviewResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [reviewAiEval, setReviewAiEval] = useState<EvaluationData | null>(null);
 
   const [realSubmissions, setRealSubmissions] = useState<SubmissionListItem[] | null>(null);
   const [subsLoading, setSubsLoading] = useState(true);
@@ -335,12 +337,19 @@ export default function TeacherPage() {
                       </a>
                     ) : <span className="text-gray-400 text-xs">—</span>}
                   </td>
-                  <td className="px-5 py-4 text-gray-500 text-xs">{sub.submittedAt}</td>
+                  <td className="px-5 py-4 text-gray-500 text-xs">{formatDateShort(sub.submittedAt)}</td>
                   <td className="px-5 py-4">{sub.aiScore > 0 ? <span className={`font-medium ${sub.aiScore >= 80 ? "text-green-600" : sub.aiScore >= 60 ? "text-amber-600" : "text-red-600"}`}>{sub.aiScore}</span> : <span className="text-gray-400">-</span>}</td>
                   <td className="px-5 py-4"><span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${sub.status === "已评分" ? "bg-green-50 text-green-700" : sub.status === "待评审" ? "bg-purple-50 text-purple-700" : sub.status === "检查失败" ? "bg-red-50 text-red-700" : "bg-blue-50 text-blue-700"}`}>{sub.status}</span></td>
                   <td className="px-5 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => setReviewTarget(sub)}
+                      <button onClick={() => { 
+                        setReviewTarget(sub); 
+                        setReviewResult(null);
+                        setReviewAiEval(null);
+                        fetchSubmissionById(sub.id).then(r => {
+                          if (r.ok && r.evaluation) setReviewAiEval(r.evaluation);
+                        });
+                      }}
                         className="rounded bg-primary-100 px-2 py-1 text-xs font-medium text-primary-700 hover:bg-primary-200">批改</button>
                       <Link href={`/submissions/${sub.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 hover:text-primary-700">详情<ChevronRight className="h-3 w-3" /></Link>
                     </div>
@@ -373,6 +382,34 @@ export default function TeacherPage() {
             {reviewTarget.aiScore > 0 && (
               <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700">
                 AI 初评: {reviewTarget.aiScore}分
+              </div>
+            )}
+
+            {/* AI evaluation details for teacher reference */}
+            {reviewAiEval && (
+              <div className="mt-3 rounded-lg border border-purple-100 bg-purple-50/50 p-3">
+                <p className="text-xs font-medium text-purple-700 mb-2">AI 评审参考</p>
+                {reviewAiEval.feedback && <p className="text-xs text-purple-800 mb-2">{reviewAiEval.feedback}</p>}
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  {reviewAiEval.strengths && (
+                    <div className="rounded bg-green-100/50 p-2">
+                      <span className="font-medium text-green-700">优点</span>
+                      <p className="text-green-800 mt-0.5">{reviewAiEval.strengths}</p>
+                    </div>
+                  )}
+                  {reviewAiEval.weaknesses && (
+                    <div className="rounded bg-amber-100/50 p-2">
+                      <span className="font-medium text-amber-700">不足</span>
+                      <p className="text-amber-800 mt-0.5">{reviewAiEval.weaknesses}</p>
+                    </div>
+                  )}
+                  {reviewAiEval.suggestions && (
+                    <div className="rounded bg-blue-100/50 p-2">
+                      <span className="font-medium text-blue-700">建议</span>
+                      <p className="text-blue-800 mt-0.5">{reviewAiEval.suggestions}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

@@ -43,7 +43,18 @@ export async function GET(
       peerReview = { assigned: true, completed: mine.some((e) => !!e.feedback) };
     }
 
-    return NextResponse.json({ ok: true, submission, peer_review: peerReview });
+    // Fetch evaluations for display (AI + teacher reviews)
+    const evaluations = await getEvaluationsBySubmission(id);
+    const aiEval = evaluations.find(e => e.evaluator_type === "ai");
+    const teacherEval = evaluations.find(e => e.evaluator_type === "teacher");
+
+    return NextResponse.json({ 
+      ok: true, 
+      submission, 
+      peer_review: peerReview,
+      evaluation: aiEval || null,
+      teacher_evaluation: teacherEval || null,
+    });
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Failed to load submission" },

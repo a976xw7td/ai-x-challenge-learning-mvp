@@ -70,11 +70,12 @@ export async function POST(request: Request) {
       await createTask(taskId, "submission_request", input.studentId);
 
       const auditTraceId = makeId("audit");
+      const payloadWithTask = { ...input as unknown as Record<string, unknown>, _taskId: taskId };
       const envelope = buildEnvelope({
         messageType: "submission_request",
         fromAgent,
         toAgent: SUBMISSION_TASK_AGENT,
-        payload: input as unknown as Record<string, unknown>,
+        payload: payloadWithTask,
         auditId: auditTraceId,
       });
 

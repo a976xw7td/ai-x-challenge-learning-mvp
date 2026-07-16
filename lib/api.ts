@@ -254,6 +254,22 @@ export type SubmissionListItem = {
   score_total?: number;
 };
 
+export type EvaluationData = {
+  evaluation_id: string;
+  submission_id: string;
+  student_id: string;
+  challenge_id: string;
+  evaluator_type: "ai" | "teacher" | "peer";
+  evaluator_id: string;
+  score_total: number;
+  feedback: string;
+  strengths?: string;
+  weaknesses?: string;
+  suggestions?: string;
+  scores_json?: string;
+  created_at: string;
+};
+
 export async function fetchSubmissions(): Promise<{ ok: boolean; submissions?: SubmissionListItem[]; error?: string }> {
   try {
     const res = await fetch("/api/submissions");
@@ -265,7 +281,7 @@ export async function fetchSubmissions(): Promise<{ ok: boolean; submissions?: S
 
 export type PeerReviewStatus = { assigned: boolean; completed: boolean };
 
-export async function fetchSubmissionById(id: string): Promise<{ ok: boolean; submission?: SubmissionListItem; peer_review?: PeerReviewStatus; error?: string }> {
+export async function fetchSubmissionById(id: string): Promise<{ ok: boolean; submission?: SubmissionListItem; peer_review?: PeerReviewStatus; evaluation?: EvaluationData | null; teacher_evaluation?: EvaluationData | null; error?: string }> {
   try {
     const res = await fetch(`/api/submissions/${id}`);
     return await res.json();

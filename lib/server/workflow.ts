@@ -17,7 +17,7 @@ import {
   WEBAPP_FALLBACK_STUDENT_AGENT,
 } from "./agents";
 import { enqueue, flush } from "./audit-outbox";
-import { notifyStudent } from "./notify";
+import { notifyStudent, notifyGroup } from "./notify";
 import { getRedis } from "./redis";
 import { updateStudentMemory } from "./ontology-memory";
 
@@ -385,7 +385,7 @@ export async function submitChallengeProject(
       await flush();
       // T8: notify student of submission success (with AI score)
       const notifyResult = await notifyStudent(input.studentId,
-        `✅ 提交成功！你的项目「${input.projectTitle}」已提交。\nAI 初评得分：${aiEvaluation.scoreTotal}/100\n评语：${aiEvaluation.feedback}`
+        `✅ 提交成功！你的项目「${input.projectTitle}」已提交。\\nAI 初评得分：${aiEvaluation.scoreTotal}/100\\n评语：${aiEvaluation.feedback}`
       );
       console.log("[T16 debug] notifyStudent result:", JSON.stringify(notifyResult));
       if (!notifyResult.ok) {
@@ -393,6 +393,12 @@ export async function submitChallengeProject(
         enqueue([entry]);
         await flush();
       }
+      // Notify class group about new submission
+      notifyGroup(
+        `📢 新提交\\n学生：${student.name}\\n挑战：${challenge.title}\\n项目：${input.projectTitle}\\nAI 初评：${aiEvaluation.scoreTotal}/100`
+      ).then((r) => {
+        if (!r.ok) console.warn("[notify] group notification failed:", r.error);
+      });
       return {
         ok: true,
         submissionId: submission.submission_id,
