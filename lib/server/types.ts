@@ -23,6 +23,29 @@ export type Student = {
   portfolio_url?: string;
 };
 
+export type RubricDimension = {
+  id: string;
+  label: string;
+  weight: number;
+  maxPoints: number;
+  description: string;
+  signals: string[];
+  negativeSignals: string[];
+};
+
+export type RubricConfig = {
+  dimensions: RubricDimension[];
+  totalPoints: number;
+};
+
+export type RedFlag = {
+  id: string;
+  description: string;
+  pattern: string;
+  affectedDimension: string;
+  maxScore: number;
+};
+
 export type Challenge = {
   challenge_id: string;
   title: string;
@@ -30,6 +53,8 @@ export type Challenge = {
   objective?: string;
   deliverables?: string;
   rubric?: string;
+  rubric_dimensions?: string;   // Phase 3: JSON of RubricConfig
+  red_flags?: string;            // Phase 3: JSON of { flags: RedFlag[] }
   deadline?: string;
   status?: string;
   created_by?: string;
@@ -72,6 +97,9 @@ export type GitHubCheck = {
   latestCommitAt?: string;
   latestCommitSha?: string;
   defaultBranch?: string;
+  readmeContent?: string;
+  fileList?: string[];
+  latestCommitMsg?: string;
   warnings: string[];
   score: number;
 };
@@ -85,6 +113,7 @@ export type AiEvaluation = {
   feedback: string;
   fallback?: boolean;
   fallbackReason?: string;
+  redFlagsHit?: string[];
 };
 
 export type PortfolioDescription = {

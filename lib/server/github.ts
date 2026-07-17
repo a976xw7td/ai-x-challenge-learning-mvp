@@ -41,6 +41,34 @@ export async function getLatestCommit(owner: string, repo: string) {
   return Array.isArray(commits) ? commits[0] : null;
 }
 
+export async function getReadmeContent(owner: string, repo: string): Promise<string | null> {
+  const readme = await getReadme(owner, repo);
+  if (!readme?.content) return null;
+  try {
+    return Buffer.from(readme.content, "base64").toString("utf-8");
+  } catch {
+    return null;
+  }
+}
+
+export async function getFileTree(owner: string, repo: string, branch?: string): Promise<string[]> {
+  const ref = branch || "HEAD";
+  const tree = await githubFetch(
+    `/repos/${owner}/${repo}/git/trees/${ref}?recursive=1`
+  );
+  if (!tree?.tree) return [];
+  return tree.tree
+    .filter((item: { type: string; path: string }) => item.type === "blob")
+    .map((item: { type: string; path: string }) => item.path);
+}
+
+export async function getLatestCommitMsg(owner: string, repo: string): Promise<string | null> {
+  const commit = await getLatestCommit(owner, repo);
+  if (!commit?.commit?.message) return null;
+  // truncate to first 500 chars
+  return commit.commit.message.slice(0, 500);
+}
+
 export async function checkRepoHealth(repoUrl: string): Promise<GitHubCheck> {
   const parsed = parseGitHubUrl(repoUrl);
   if (!parsed) {
@@ -63,12 +91,25 @@ export async function checkRepoHealth(repoUrl: string): Promise<GitHubCheck> {
   let latestCommitAt: string | undefined;
   let latestCommitSha: string | undefined;
   let defaultBranch: string | undefined;
+  let readmeContent: string | undefined;
+  let fileList: string[] | undefined;
+  let latestCommitMsg: string | undefined;
 
   if (repoExists) {
     defaultBranch = repoInfo.default_branch;
     const readme = await getReadme(parsed.owner, parsed.repo);
     readmeExists = Boolean(readme);
     if (!readmeExists) warnings.push("未检测到 README");
+
+    // Phase 1: fetch actual content for AI evaluation
+    const [content, files, commitMsg] = await Promise.all([
+      getReadmeContent(parsed.owner, parsed.repo),
+      getFileTree(parsed.owner, parsed.repo, defaultBranch),
+      getLatestCommitMsg(parsed.owner, parsed.repo),
+    ]);
+    readmeContent = content ?? undefined;
+    fileList = files.length > 0 ? files : undefined;
+    latestCommitMsg = commitMsg ?? undefined;
 
     const commit = await getLatestCommit(parsed.owner, parsed.repo);
     latestCommitAt = commit?.commit?.committer?.date;
@@ -87,6 +128,9 @@ export async function checkRepoHealth(repoUrl: string): Promise<GitHubCheck> {
     latestCommitAt,
     latestCommitSha,
     defaultBranch,
+    readmeContent,
+    fileList,
+    latestCommitMsg,
     warnings,
     score: Math.min(score, 100),
   };

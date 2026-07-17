@@ -1,5 +1,5 @@
 import { optionalEnv } from "./env";
-import type { AiEvaluation, PortfolioDescription } from "./types";
+import type { AiEvaluation, PortfolioDescription, RubricDimension, RubricConfig, RedFlag } from "./types";
 import { z } from "zod";
 
 type AiInput = {
@@ -10,32 +10,15 @@ type AiInput = {
   aiEvaluation?: unknown;
 };
 
-// ---- Zod schema for AI evaluation validation ----
+// ---- Default dimensions (Phase 3: used when challenge has no rubric_dimensions) ----
 
-const AiEvaluationSchema = z.object({
-  problemUnderstanding: z.number().int().min(0).max(20),
-  aiUsage: z.number().int().min(0).max(20),
-  artifactCompleteness: z.number().int().min(0).max(20),
-  technicalExecution: z.number().int().min(0).max(20),
-  reflectionQuality: z.number().int().min(0).max(20),
-  scoreTotal: z.number().int().min(0).max(100),
-  strengths: z.string().min(1),
-  weaknesses: z.string().min(1),
-  suggestions: z.string().min(1),
-  feedback: z.string().min(1),
-});
-
-type AiEvaluationRaw = z.infer<typeof AiEvaluationSchema>;
-
-// ---- Default rubric (used when challenge has no rubric) ----
-
-const DEFAULT_RUBRIC = `请按以下五维标准评分（每项 0-20 分，总分 100）：
-
-1. 问题理解 (problemUnderstanding, 0-20)：是否准确理解项目目标与挑战
-2. AI 使用质量 (aiUsage, 0-20)：AI 工具使用是否恰当、有效
-3. 产物完整性 (artifactCompleteness, 0-20)：交付物是否齐全、可运行
-4. 技术实现 (technicalExecution, 0-20)：技术方案与代码质量
-5. 复盘质量 (reflectionQuality, 0-20)：AAR 反思是否深入、有洞察`;
+const DEFAULT_DIMENSIONS: RubricDimension[] = [
+  { id: "problemUnderstanding", label: "问题理解", weight: 20, maxPoints: 20, description: "是否准确理解项目目标与挑战", signals: ["准确定义问题", "明确目标用户"], negativeSignals: ["跑题", "理解偏差"] },
+  { id: "aiUsage", label: "AI使用质量", weight: 20, maxPoints: 20, description: "AI 工具使用是否恰当、有效", signals: ["多轮迭代", "prompt优化", "工作流设计"], negativeSignals: ["一句话指令直接提交", "没有AI使用记录"] },
+  { id: "artifactCompleteness", label: "产物完整性", weight: 20, maxPoints: 20, description: "交付物是否齐全、可运行", signals: ["README", "可运行代码", "安装说明"], negativeSignals: ["文件为空", "缺少核心交付物"] },
+  { id: "technicalExecution", label: "技术实现", weight: 20, maxPoints: 20, description: "技术方案与代码质量", signals: ["代码规范", "Git提交", "架构设计"], negativeSignals: ["硬编码路径", "代码混乱"] },
+  { id: "reflectionQuality", label: "复盘质量", weight: 20, maxPoints: 20, description: "AAR 反思是否深入、有洞察", signals: ["具体问题分析", "有改进方案", "记录了迭代过程"], negativeSignals: ["敷衍了事", "没有实际反思"] },
+];
 
 // ---- AI config ----
 
@@ -107,6 +90,61 @@ async function callAiJson<T>(messages: Array<{ role: "system" | "user"; content:
   return JSON.parse(payload.choices[0].message.content) as T;
 }
 
+// ---- Phase 3: Dynamic schema & prompt builders ----
+
+function buildAiSchema(dimensions: RubricDimension[]) {
+  const shape: Record<string, z.ZodNumber> = {};
+  for (const dim of dimensions) {
+    shape[dim.id] = z.number().int().min(0).max(dim.maxPoints);
+  }
+  return z.object({
+    ...shape,
+    scoreTotal: z.number().int().min(0).max(100),
+    strengths: z.string().min(1),
+    weaknesses: z.string().min(1),
+    suggestions: z.string().min(1),
+    feedback: z.string().min(1),
+  });
+}
+
+function buildSystemPrompt(dimensions: RubricDimension[], redFlags?: RedFlag[]) {
+  const dimLines = dimensions.map(d =>
+    `- **${d.label}** (${d.id}, 0-${d.maxPoints}分): ${d.description}
+  正面信号: ${d.signals.join("、")}
+  负面信号: ${d.negativeSignals.join("、")}`
+  ).join("\n\n");
+
+  const flagLines = redFlags && redFlags.length > 0
+    ? `\n红线规则（命中则对应维度不超过上限分）：\n${redFlags.map(f => `- ${f.description} → ${f.affectedDimension} ≤ ${f.maxScore}分`).join("\n")}`
+    : "";
+
+  return `你是 AI+X 项目课的助教。请严格按以下评分标准进行初评，只返回严格 JSON。
+
+评分维度（共 ${dimensions.length} 个）：
+
+${dimLines}${flagLines}
+
+返回格式（严格 JSON，所有字段必填，scoreTotal 等于各维度之和）：
+{
+${dimensions.map(d => `  "${d.id}": <0-${d.maxPoints} 整数>`).join(",\n")},
+  "scoreTotal": <各维度之和，0-100 整数>,
+  "strengths": "<优点，非空字符串>",
+  "weaknesses": "<不足，非空字符串>",
+  "suggestions": "<改进建议，非空字符串>",
+  "feedback": "<综合评价，非空字符串>"
+}`;
+}
+
+function checkRedFlags(inputContent: string, redFlags: RedFlag[]): string[] {
+  return redFlags
+    .filter(f => {
+      try {
+        return new RegExp(f.pattern, "i").test(inputContent);
+      } catch { return false; }
+    })
+    .map(f => f.id);
+}
+
 // ---- Public API ----
 
 export async function evaluateSubmission(input: AiInput): Promise<AiEvaluation> {
@@ -117,72 +155,95 @@ export async function evaluateSubmission(input: AiInput): Promise<AiEvaluation> 
     return fallbackEvaluation(reason);
   }
 
-  // Extract rubric from challenge
-  const challenge = input.challenge as { rubric?: string } | undefined;
-  const rubricText = challenge?.rubric?.trim() || DEFAULT_RUBRIC;
+  // Phase 3: Parse structured rubric dimensions from challenge
+  const challenge = input.challenge as {
+    rubric?: string;
+    rubric_dimensions?: string;
+    red_flags?: string;
+  } | undefined;
 
-  const systemPrompt = `你是 AI+X 项目课的助教。请按以下评分标准进行初评，只返回严格 JSON。
+  let dimensions: RubricDimension[];
+  try {
+    if (challenge?.rubric_dimensions) {
+      const rubric: RubricConfig = JSON.parse(challenge.rubric_dimensions);
+      dimensions = rubric.dimensions?.length > 0 ? rubric.dimensions : DEFAULT_DIMENSIONS;
+    } else {
+      dimensions = DEFAULT_DIMENSIONS;
+    }
+  } catch {
+    dimensions = DEFAULT_DIMENSIONS;
+  }
 
-评分标准：
-${rubricText}
+  let redFlags: RedFlag[] = [];
+  try {
+    if (challenge?.red_flags) {
+      const parsed = JSON.parse(challenge.red_flags);
+      redFlags = parsed.flags || [];
+    }
+  } catch { /* ignore */ }
 
-返回格式（严格 JSON，所有字段必填）：
-{
-  "problemUnderstanding": <0-20 整数>,
-  "aiUsage": <0-20 整数>,
-  "artifactCompleteness": <0-20 整数>,
-  "technicalExecution": <0-20 整数>,
-  "reflectionQuality": <0-20 整数>,
-  "scoreTotal": <五项之和，0-100 整数>,
-  "strengths": "<优点，非空字符串>",
-  "weaknesses": "<不足，非空字符串>",
-  "suggestions": "<改进建议，非空字符串>",
-  "feedback": "<综合评价，非空字符串>"
-}`;
+  // Phase 1: Build user content with GitHub data
+  const ghCheck = input.githubCheck as Record<string, unknown> | undefined;
+  const userContent = {
+    student: input.student,
+    challenge: input.challenge,
+    submission: input.submission,
+    github: {
+      readmeContent: ghCheck?.readmeContent ?? null,
+      fileList: ghCheck?.fileList ?? [],
+      latestCommitMsg: ghCheck?.latestCommitMsg ?? null,
+      repoExists: ghCheck?.repoExists ?? false,
+      hasReadme: ghCheck?.readmeExists ?? false,
+    },
+  };
 
-  // Try up to 2 times (initial + 1 retry)
+  // Phase 3: Regex red flag check on the raw content (deterministic, before AI)
+  const userContentStr = JSON.stringify(userContent);
+  const redFlagsHit = redFlags.length > 0 ? checkRedFlags(userContentStr, redFlags) : [];
+
+  // Build dynamic schema and prompt
+  const schema = buildAiSchema(dimensions);
+  const systemPrompt = buildSystemPrompt(dimensions, redFlags);
+
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const raw = await callAiJson<AiEvaluationRaw>([
+      const raw = await callAiJson<Record<string, unknown>>([
         { role: "system", content: systemPrompt },
-        { role: "user", content: JSON.stringify(input, null, 2) },
+        { role: "user", content: userContentStr },
       ]);
 
-      // Zod validation
-      const parsed = AiEvaluationSchema.safeParse(raw);
+      const parsed = schema.safeParse(raw);
       if (!parsed.success) {
         if (attempt === 0) {
           console.warn("[ai] schema validation failed, retrying:", parsed.error.flatten());
-          continue; // retry once
+          continue;
         }
-        const reason = `schema_validation_failed: ${parsed.error.flatten().fieldErrors}`;
+        const reason = `schema_validation_failed: ${JSON.stringify(parsed.error.flatten().fieldErrors)}`;
         console.error("[ai] fallback:", reason);
         return fallbackEvaluation(reason);
       }
 
-      const result = parsed.data;
+      const result = parsed.data as Record<string, unknown>;
 
-      // Trust, but verify: enforce scoreTotal = sum of dimensions
-      const computedTotal =
-        result.problemUnderstanding +
-        result.aiUsage +
-        result.artifactCompleteness +
-        result.technicalExecution +
-        result.reflectionQuality;
+      // Apply red flag score caps
+      const scores: Record<string, number> = {};
+      let computedTotal = 0;
+      for (const dim of dimensions) {
+        const aiScore = result[dim.id] as number;
+        const hitFlag = redFlags.find(f => f.affectedDimension === dim.id && redFlagsHit.includes(f.id));
+        const capped = hitFlag ? Math.min(aiScore, hitFlag.maxScore) : aiScore;
+        scores[dim.id] = capped;
+        computedTotal += capped;
+      }
 
       return {
-        scoreTotal: computedTotal,
-        scores: {
-          problemUnderstanding: result.problemUnderstanding,
-          aiUsage: result.aiUsage,
-          artifactCompleteness: result.artifactCompleteness,
-          technicalExecution: result.technicalExecution,
-          reflectionQuality: result.reflectionQuality,
-        },
-        strengths: result.strengths,
-        weaknesses: result.weaknesses,
-        suggestions: result.suggestions,
-        feedback: result.feedback,
+        scoreTotal: Math.min(computedTotal, 100),
+        scores,
+        strengths: result.strengths as string,
+        weaknesses: result.weaknesses as string,
+        suggestions: result.suggestions as string,
+        feedback: result.feedback as string,
+        redFlagsHit: redFlagsHit.length > 0 ? redFlagsHit : undefined,
       };
     } catch (err) {
       if (attempt === 0) {
@@ -195,7 +256,6 @@ ${rubricText}
     }
   }
 
-  // Should not reach here, but TypeScript requires a return
   const reason = "unexpected_loop_exit";
   console.error("[ai] fallback:", reason);
   return fallbackEvaluation(reason);

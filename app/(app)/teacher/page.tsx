@@ -35,10 +35,45 @@ export default function TeacherPage() {
   const [pubBrief, setPubBrief] = useState("");
   const [pubObjective, setPubObjective] = useState("");
   const [pubDeliverables, setPubDeliverables] = useState("");
+  const [pubRequiredFiles, setPubRequiredFiles] = useState("");  // Phase 2: glob patterns
   const [pubRubric, setPubRubric] = useState("");
   const [pubDeadline, setPubDeadline] = useState("");
+  const [pubChallengeType, setPubChallengeType] = useState("build");  // Phase 3
+  const [pubDimensions, setPubDimensions] = useState<Array<{id:string;label:string;weight:number;signals:string;negativeSignals:string}>>([]);  // Phase 3
   const [pubLoading, setPubLoading] = useState(false);
   const [pubResult, setPubResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // Phase 3: Default dimension templates per challenge type
+  const TYPE_DEFAULTS: Record<string, Array<{id:string;label:string;weight:number;signals:string;negativeSignals:string}>> = {
+    build: [
+      { id:"problemUnderstanding", label:"问题理解", weight:15, signals:"准确定义问题,明确目标用户", negativeSignals:"跑题,理解偏差" },
+      { id:"aiUsage", label:"AI使用质量", weight:20, signals:"多轮迭代,prompt优化,工作流设计", negativeSignals:"一句话指令,没有AI记录" },
+      { id:"artifactCompleteness", label:"产物完整性", weight:25, signals:"README,可运行代码,安装说明", negativeSignals:"文件为空,缺交付物" },
+      { id:"technicalExecution", label:"技术实现", weight:25, signals:"代码规范,Git提交,架构设计", negativeSignals:"硬编码路径,代码混乱" },
+      { id:"reflectionQuality", label:"复盘质量", weight:15, signals:"具体分析,改进方案,迭代记录", negativeSignals:"敷衍,无实际反思" },
+    ],
+    explore: [
+      { id:"explorationDepth", label:"探索深度", weight:25, signals:"多方案对比,实验记录,数据支撑", negativeSignals:"浅尝辄止,无数据" },
+      { id:"aiUsage", label:"AI使用质量", weight:20, signals:"多轮迭代,prompt优化,工作流设计", negativeSignals:"一句话指令,没有AI记录" },
+      { id:"methodRigor", label:"方法严谨性", weight:20, signals:"实验设计,对照实验,可复现", negativeSignals:"无方法说明" },
+      { id:"discoveryValue", label:"发现价值", weight:20, signals:"新发现,反直觉结论,实用洞见", negativeSignals:"无新发现" },
+      { id:"reflectionQuality", label:"复盘质量", weight:15, signals:"具体分析,改进方案,迭代记录", negativeSignals:"敷衍,无实际反思" },
+    ],
+    research: [
+      { id:"thoughtDepth", label:"思想深度", weight:30, signals:"原创观点,深度分析,批判思维", negativeSignals:"表面总结,缺乏思考" },
+      { id:"structureRigor", label:"结构严谨性", weight:25, signals:"逻辑清晰,引用规范,论证充分", negativeSignals:"结构混乱,缺少引用" },
+      { id:"publishability", label:"可发表性", weight:20, signals:"学术规范,创新贡献,写作质量", negativeSignals:"像笔记不像论文" },
+      { id:"aiUsage", label:"AI使用质量", weight:15, signals:"AI辅助研究,迭代优化", negativeSignals:"未使用AI或滥用" },
+      { id:"attribution", label:"拿来主义", weight:10, signals:"外部资源利用,改造说明,来源标注", negativeSignals:"无来源标注,照搬" },
+    ],
+    product: [
+      { id:"productCompleteness", label:"产品完成度", weight:30, signals:"核心功能,可运行,无重大bug", negativeSignals:"不能运行,功能残缺" },
+      { id:"ux", label:"用户体验", weight:20, signals:"界面设计,交互流畅,易上手", negativeSignals:"无法使用,界面混乱" },
+      { id:"technicalExecution", label:"技术实现", weight:20, signals:"代码规范,架构设计,可部署", negativeSignals:"硬编码,无法部署" },
+      { id:"aiUsage", label:"AI使用质量", weight:15, signals:"AI辅助开发,迭代记录", negativeSignals:"无AI使用记录" },
+      { id:"documentation", label:"文档质量", weight:15, signals:"README,使用说明,API文档", negativeSignals:"无文档" },
+    ],
+  };
 
   // Review modal
   const [reviewTarget, setReviewTarget] = useState<SubmissionRow | null>(null);
@@ -144,17 +179,28 @@ export default function TeacherPage() {
     setPubLoading(true);
     setPubResult(null);
     try {
+      // Phase 3: build rubric_dimensions from dimension table
+      const rubricDimensions = pubDimensions.length > 0 ? JSON.stringify({
+        dimensions: pubDimensions.map(d => ({
+          id: d.id, label: d.label, weight: d.weight, maxPoints: d.weight,
+          description: d.label,
+          signals: d.signals.split(/[,，]/).map(s => s.trim()).filter(Boolean),
+          negativeSignals: d.negativeSignals.split(/[,，]/).map(s => s.trim()).filter(Boolean),
+        })),
+        totalPoints: 100,
+      }) : undefined;
+
       const res = await fetch("/api/challenges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: pubTitle, brief: pubBrief, objective: pubObjective, deliverables: pubDeliverables, rubric: pubRubric, deadline: pubDeadline }),
+        body: JSON.stringify({ title: pubTitle, brief: pubBrief, objective: pubObjective, deliverables: pubDeliverables, rubric: pubRubric, required_deliverables: pubRequiredFiles, rubric_dimensions: rubricDimensions, deadline: pubDeadline }),
       });
       const data = await res.json();
       setPubResult(data.ok
         ? { ok: true, message: `Challenge 发布成功！ID: ${data.challengeId}` }
         : { ok: false, message: data.missingFields ? `缺少：${data.missingFields.join("、")}` : data.error || "发布失败" }
       );
-      if (data.ok) { setPubTitle(""); setPubBrief(""); setPubObjective(""); setPubDeliverables(""); setPubRubric(""); setPubDeadline(""); }
+      if (data.ok) { setPubTitle(""); setPubBrief(""); setPubObjective(""); setPubDeliverables(""); setPubRequiredFiles(""); setPubRubric(""); setPubDeadline(""); setPubDimensions([]); }
     } catch {
       setPubResult({ ok: false, message: "网络错误" });
     }
@@ -212,8 +258,57 @@ export default function TeacherPage() {
               <textarea value={pubObjective} onChange={(e) => setPubObjective(e.target.value)} rows={2} placeholder="学生学到什么" className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm" /></div>
             <div><label className="block text-sm font-medium text-gray-900">交付物 *</label>
               <textarea value={pubDeliverables} onChange={(e) => setPubDeliverables(e.target.value)} rows={2} placeholder="需要提交什么" className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm" /></div>
+            <div><label className="block text-sm font-medium text-gray-900">必交文件（glob 模式，逗号分隔）</label>
+              <input type="text" value={pubRequiredFiles} onChange={(e) => setPubRequiredFiles(e.target.value)} placeholder="README.md, *.py, demo.*, *AI日志*" className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm" />
+              <p className="mt-1 text-xs text-gray-400">用 * 匹配任意字符。学生仓库缺少这些文件将被直接打回。</p></div>
             <div><label className="block text-sm font-medium text-gray-900">评分标准 *</label>
               <textarea value={pubRubric} onChange={(e) => setPubRubric(e.target.value)} rows={3} placeholder="按什么标准评分" className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm" /></div>
+            {/* Phase 3: Challenge type + dimensions */}
+            <div><label className="block text-sm font-medium text-gray-900">Challenge 类型</label>
+              <select value={pubChallengeType} onChange={(e) => { setPubChallengeType(e.target.value); setPubDimensions(TYPE_DEFAULTS[e.target.value] || []); }} className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-3 text-sm">
+                <option value="build">构建型 — 代码/系统开发</option>
+                <option value="explore">探索型 — 实验/调研</option>
+                <option value="research">研究型 — 论文/分析</option>
+                <option value="product">产品型 — 完整产品交付</option>
+              </select></div>
+            {pubDimensions.length > 0 && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">评分维度（权重合计: {pubDimensions.reduce((s,d)=>s+d.weight,0)}/100）</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-500">
+                        <th className="pb-1 pr-2">维度</th><th className="pb-1 pr-2 w-14">权重</th><th className="pb-1 pr-2">正面信号</th><th className="pb-1">负面信号</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pubDimensions.map((d, i) => (
+                        <tr key={d.id} className="border-t border-gray-100">
+                          <td className="py-1 pr-2">
+                            <input className="w-full bg-white border border-gray-200 rounded px-1.5 py-0.5 text-xs" value={d.label}
+                              onChange={e => { const nd=[...pubDimensions]; nd[i]={...nd[i],label:e.target.value}; setPubDimensions(nd); }} />
+                          </td>
+                          <td className="py-1 pr-2">
+                            <input type="number" min={5} max={50} className="w-14 bg-white border border-gray-200 rounded px-1.5 py-0.5 text-xs" value={d.weight}
+                              onChange={e => { const nd=[...pubDimensions]; nd[i]={...nd[i],weight:parseInt(e.target.value)||0}; setPubDimensions(nd); }} />
+                          </td>
+                          <td className="py-1 pr-2">
+                            <input className="w-full bg-white border border-gray-200 rounded px-1.5 py-0.5 text-xs" value={d.signals}
+                              onChange={e => { const nd=[...pubDimensions]; nd[i]={...nd[i],signals:e.target.value}; setPubDimensions(nd); }} />
+                          </td>
+                          <td className="py-1">
+                            <input className="w-full bg-white border border-gray-200 rounded px-1.5 py-0.5 text-xs" value={d.negativeSignals}
+                              onChange={e => { const nd=[...pubDimensions]; nd[i]={...nd[i],negativeSignals:e.target.value}; setPubDimensions(nd); }} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
             <div><label className="block text-sm font-medium text-gray-900">截止时间 *</label>
               <input type="datetime-local" value={pubDeadline} onChange={(e) => setPubDeadline(e.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 py-2.5 px-4 text-sm" /></div>
             {pubResult && <div className={`rounded-lg p-3 text-sm ${pubResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>{pubResult.message}</div>}

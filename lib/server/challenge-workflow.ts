@@ -19,6 +19,8 @@ export interface PublishChallengeInput {
   objective?: string;
   deliverables: string;
   rubric: string;
+  required_deliverables?: string;
+  rubric_dimensions?: string;
   deadline: string;
 }
 
@@ -79,18 +81,23 @@ export async function publishChallenge(input: PublishChallengeInput): Promise<Pu
     audit.log(SUBMISSION_TASK_AGENT, "verify_relationship_challenge", envelope.from_agent);
 
     // 4. Write to Feishu Challenges table
-    const challenge = await feishu.createChallenge({
+    const feishuFields: Record<string, unknown> = {
       title: input.title,
       brief: input.brief || "",
       objective: input.objective || "",
       deliverables: input.deliverables,
       rubric: input.rubric,
+      required_deliverables: input.required_deliverables || "",
       deadline: input.deadline,
       status: "published",
       created_by: WEBAPP_FALLBACK_TEACHER_AGENT,
       teacher_agent_id: WEBAPP_FALLBACK_TEACHER_AGENT,
-      created_at: new Date().toISOString(),
-    });
+    };
+    // Only include rubric_dimensions if provided (column may not exist yet)
+    if (input.rubric_dimensions) {
+      feishuFields.rubric_dimensions = input.rubric_dimensions;
+    }
+    const challenge = await feishu.createChallenge(feishuFields);
     audit.log(SUBMISSION_TASK_AGENT, "create_challenge_record", String(challenge.challenge_id));
 
     // T8: notify class group about new challenge

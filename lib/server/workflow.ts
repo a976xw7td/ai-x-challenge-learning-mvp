@@ -229,6 +229,44 @@ export async function submitChallengeProject(
       after_state: { repoExists: githubCheck.repoExists, score: githubCheck.score },
     });
 
+    // Phase 2: Completeness check — verify required deliverables exist in repo
+    const requiredDeliverablesStr = (challenge as { required_deliverables?: string }).required_deliverables;
+    if (requiredDeliverablesStr && githubCheck.fileList && githubCheck.fileList.length > 0) {
+      const patterns = requiredDeliverablesStr
+        .split(/[,，\n]/)
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
+      
+      if (patterns.length > 0) {
+        const missing: string[] = [];
+        for (const pattern of patterns) {
+          const regex = new RegExp(
+            "^" + pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$",
+            "i"
+          );
+          const found = githubCheck.fileList.some(f => regex.test(f));
+          if (!found) missing.push(pattern);
+        }
+        if (missing.length > 0) {
+          // Clear dedup so student can retry after fixing files
+          if (redis) {
+            await redis.del(dedupeRedisKey).catch(() => {});
+          } else {
+            dedupeCache.delete(dedupeKey);
+          }
+          audit.log(SUBMISSION_TASK_AGENT, "completeness_check_failed", input.githubRepoUrl, {
+            error_trace: `missing=[${missing.join(",")}] required=${patterns.length} found=${githubCheck.fileList.length}`,
+          });
+          enqueue(audit.entries);
+          await flush();
+          return { ok: false, error: `缺少交付物: ${missing.join("、")}。请补充后重新提交。`, auditTrail: audit.entries };
+        }
+        audit.log(SUBMISSION_TASK_AGENT, "completeness_check_passed", input.githubRepoUrl, {
+          after_state: { completeness: "passed" as unknown },
+        });
+      }
+    }
+
     // 5. Route based on review_mode (T6)
     const reviewMode = (() => {
       const raw = input.reviewMode || "teacher_only";

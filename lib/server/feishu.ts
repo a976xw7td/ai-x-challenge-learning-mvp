@@ -57,6 +57,8 @@ const FEISHU_FIELD_NAMES: Record<string, string> = {
   ontology_nodes: "本体节点",
   learning_objectives: "学习目标",
   required_deliverables: "必要交付物",
+  rubric_dimensions: "评分维度JSON",
+  red_flags: "红线规则JSON",
   rubric_pointer: "评分标准链接",
   updated_at: "更新时间",
   submission_id: "提交ID",
@@ -247,6 +249,9 @@ function normalizeChallenge(record: { record_id: string; fields: Record<string, 
     objective: asString(field(f, "objective")),
     deliverables: asString(field(f, "deliverables")),
     rubric: asString(field(f, "rubric")),
+    rubric_dimensions: asString(field(f, "rubric_dimensions")),
+    red_flags: asString(field(f, "red_flags")),
+    required_deliverables: asString(field(f, "required_deliverables")),
     deadline: asString(field(f, "deadline")),
     status: asString(field(f, "status")),
     created_by: asString(field(f, "created_by")),
@@ -256,7 +261,6 @@ function normalizeChallenge(record: { record_id: string; fields: Record<string, 
     airtable_record_id: asString(field(f, "airtable_record_id")),
     ontology_nodes: asString(field(f, "ontology_nodes")),
     learning_objectives: asString(field(f, "learning_objectives")),
-    required_deliverables: asString(field(f, "required_deliverables")),
     rubric_pointer: asString(field(f, "rubric_pointer")),
     skills: asString(field(f, "skills")),
     created_at: asString(field(f, "created_at")),
@@ -398,7 +402,19 @@ export async function updateStudent(recordId: string, fields: Record<string, unk
 
 export async function getPublishedChallenges() {
   const rows = await listRecords(requireEnv("FEISHU_CHALLENGES_TABLE_ID"));
-  return rows.map(normalizeChallenge).filter((challenge) => challenge.status === "published");
+  const challenges = rows.map(normalizeChallenge).filter(
+    (challenge) => challenge.status === "published" && challenge.required_deliverables
+  );
+  // Deduplicate: for same challenge_id prefix, keep the one with longest required_deliverables
+  const seen = new Map<string, typeof challenges[number]>();
+  for (const c of challenges) {
+    const prefix = c.title?.split(" ")[0] || c.challenge_id;
+    const existing = seen.get(prefix);
+    if (!existing || (c.required_deliverables?.length || 0) > (existing.required_deliverables?.length || 0)) {
+      seen.set(prefix, c);
+    }
+  }
+  return Array.from(seen.values());
 }
 
 export async function getChallengeById(challengeId: string) {

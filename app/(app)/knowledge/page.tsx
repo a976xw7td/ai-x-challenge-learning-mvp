@@ -38,7 +38,7 @@ export default function KnowledgePage() {
   const [activeType, setActiveType] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/platform-content.json")
+    fetch("/api/platform-content")
       .then((r) => r.json())
       .then((d) => setItems(d.knowledge || []))
       .catch(() => setItems([]))

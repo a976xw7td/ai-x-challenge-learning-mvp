@@ -22,7 +22,7 @@ export default function DocsPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/platform-content.json")
+    fetch("/api/platform-content")
       .then((r) => r.json())
       .then((d) => {
         const list = d.docs || [];

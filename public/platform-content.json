@@ -2,163 +2,73 @@
   "knowledge": [
     {
       "id": "k1",
-      "title": "什么是 NSEAP？",
+      "title": "什么是微积分？",
       "type": "FAQ",
       "tags": [
         "入门",
-        "概念"
+        "数学"
       ],
-      "summary": "NSEAP 是一个 AI Native 教育平台，基于认知细胞架构和四 Agent 协作模型。学生通过完成 20 个渐进式 Challenge 来学习 AI 开发，所有提交和评审通过 Agent 自动流转。",
-      "lastUpdated": "2026-07-08"
+      "summary": "微积分是研究变化率和累积量的数学分支，包括微分学和积分学两大部分。",
+      "lastUpdated": "2026-07-16"
     },
     {
       "id": "k2",
-      "title": "Vibe Coding 入门指南",
+      "title": "导数入门",
       "type": "教材",
       "tags": [
-        "Vibe Coding",
-        "AI 编程",
-        "Cursor"
+        "导数",
+        "极限"
       ],
-      "summary": "Vibe Coding 是一种 AI 辅助编程方法论——你描述意图，AI 生成代码。核心原则：你是「指挥家」不是「打字员」，你的价值在思路和判断。",
-      "lastUpdated": "2026-07-08"
+      "summary": "导数是微积分的核心概念，表示函数在某一点的变化率。物理意义是瞬时速度，几何意义是切线斜率。",
+      "lastUpdated": "2026-07-16"
     },
     {
       "id": "k3",
-      "title": "如何写好提示词",
-      "type": "Prompt",
+      "title": "积分技巧总结",
+      "type": "最佳实践",
       "tags": [
-        "Prompt Engineering",
-        "最佳实践"
+        "积分",
+        "技巧"
       ],
-      "summary": "系统化的提示词设计指南：从角色设定 → 任务描述 → 输出格式 → 约束条件 → 示例（Few-shot）。包含 10+ 个经过验证的提示词模板。",
-      "lastUpdated": "2026-07-08"
+      "summary": "常见积分技巧：换元法、分部积分法、三角代换、有理函数积分等。",
+      "lastUpdated": "2026-07-16"
     },
     {
       "id": "k4",
-      "title": "Agent 间信任关系设计",
-      "type": "最佳实践",
+      "title": "泰勒展开公式",
+      "type": "Prompt",
       "tags": [
-        "Agent",
-        "Trusted Relationship",
-        "安全"
+        "泰勒",
+        "近似"
       ],
-      "summary": "Agent 之间通过 Trusted Relationship 管理权限。关系类型分 companion/task-agent/peer 三种。每对关系需声明权限范围。",
-      "lastUpdated": "2026-07-08"
-    },
-    {
-      "id": "k5",
-      "title": "Multi-Agent 协作开发",
-      "type": "案例",
-      "tags": [
-        "Agent",
-        "协作",
-        "工作流"
-      ],
-      "summary": "演示如何使用多个 AI Agent 协作完成一个完整的 Challenge 开发流程。",
-      "lastUpdated": "2026-07-08"
-    },
-    {
-      "id": "k6",
-      "title": "飞书 Bot 接入指南",
-      "type": "最佳实践",
-      "tags": [
-        "飞书",
-        "Bot",
-        "通知"
-      ],
-      "summary": "Agent 对人的通知统一走飞书 Bot。设置步骤：创建飞书应用 → 获取 App ID/Secret → 配置消息卡片模板 → 测试通知链路。",
-      "lastUpdated": "2026-07-09"
-    },
-    {
-      "id": "k7",
-      "title": "TypeScript + React 开发规范",
-      "type": "参考资料",
-      "tags": [
-        "TypeScript",
-        "React",
-        "代码规范"
-      ],
-      "summary": "项目统一的代码风格和开发规范：组件设计模式、状态管理、文件命名约定、Git 提交格式。",
-      "lastUpdated": "2026-07-08"
-    },
-    {
-      "id": "k8",
-      "title": "Audit Log 设计笔记",
-      "type": "Agent笔记",
-      "tags": [
-        "审计",
-        "Agent",
-        "合规"
-      ],
-      "summary": "AuditLog 必须记录每一次状态变更：谁、做了什么、对哪个资源、变更前后的状态。红线：无审计不写操作。",
-      "lastUpdated": "2026-07-08"
+      "summary": "泰勒公式用多项式逼近光滑函数，是数值计算的重要工具。f(x) = f(a) + f'(a)(x-a) + f''(a)(x-a)²/2! + ...",
+      "lastUpdated": "2026-07-16"
     }
   ],
   "docs": [
     {
       "id": "d1",
-      "title": "NSEAP 架构概述",
-      "category": "架构设计",
-      "author": "技术团队",
-      "lastUpdated": "2026-07-08",
-      "content": "NSEAP 采用 AI Native 架构，核心由四个 Agent 组成：Teacher Companion（教师端）、Student Companion（学生端）、Submission Task Agent（提交处理）、Review Task Agent（AI 评审）。系统使用 Redis Stream 作为消息总线，飞书多维表作为运营数据库，DeepSeek 提供 AI 评分能力。"
+      "title": "微积分课程大纲",
+      "category": "课程设计",
+      "author": "数学系",
+      "lastUpdated": "2026-07-16",
+      "content": "第一周：极限与连续。第二周：导数与微分。第三周：中值定理与导数应用。第四周：不定积分。第五周：定积分。第六周：定积分的应用。第七周：微分方程初步。第八周：期末复习。"
     },
     {
       "id": "d2",
-      "title": "Agent 协作流程",
-      "category": "架构设计",
-      "author": "技术团队",
-      "lastUpdated": "2026-07-08",
-      "content": "Agent 之间有明确的协作流程：Teacher Companion 发布 Challenge → Student Companion 接收并引导学生完成 → Submission Task Agent 校验并写入提交记录 → Review Task Agent 按 Rubric 执行评审 → 结果通过飞书 Bot 通知学生和老师。"
+      "title": "如何学好微积分",
+      "category": "课程设计",
+      "author": "数学系",
+      "lastUpdated": "2026-07-16",
+      "content": "1. 理解概念本质，不死记硬背公式。2. 大量做题，培养计算能力。3. 多做几何直观的理解。4. 使用图形计算器辅助学习。5. 跟同学讨论和互相讲解。"
     },
     {
       "id": "d3",
-      "title": "提交规范",
+      "title": "作业提交规范",
       "category": "开发指南",
-      "author": "技术团队",
-      "lastUpdated": "2026-07-08",
-      "content": "学生通过平台提交项目时需填写：选择 Challenge、项目标题、GitHub 仓库链接、项目摘要、AAR 复盘（做了什么、学到什么、遇到什么问题）、自评文本（给自己打分和反思）、是否公开到作品集。系统会自动检查 GitHub 仓库是否存在、是否有 README、是否有最近提交。"
-    },
-    {
-      "id": "d4",
-      "title": "评分体系",
-      "category": "开发指南",
-      "author": "技术团队",
-      "lastUpdated": "2026-07-08",
-      "content": "AI 评分基于每个 Challenge 的 Rubric（评分标准）从多个维度打分。目前支持的维度包括：Code Quality（代码质量）、Architecture Design（架构设计）、AI Tooling（AI 工具运用）、Documentation（文档规范）、Self-Reflection（自评深度）。每次提交会生成 strengths（优点）、weaknesses（不足）和 suggestions（改进建议）。"
-    },
-    {
-      "id": "d5",
-      "title": "课程设计理念",
-      "category": "课程设计",
-      "author": "技术团队",
-      "lastUpdated": "2026-07-08",
-      "content": "Elite20 Builder Program 采用 Challenge-Based Learning（挑战驱动学习）模式。20 个 Challenge 按难度递增排列（入门 → 进阶 → 挑战），覆盖 Prompt Engineering、Git 协作、Agent 开发、API 调用、Embedding、RAG 等核心 AI 技能。每个 Challenge 有明确的交付物和评分标准。"
-    },
-    {
-      "id": "d6",
-      "title": "怎么用这个平台",
-      "category": "课程设计",
-      "author": "技术团队",
-      "lastUpdated": "2026-07-08",
-      "content": "学生：登录 → 看 Challenge 列表 → 选一个 → 在 GitHub 上做项目 → 回平台提交链接 → AI 自动评分 → 查看结果 → 改完再提交 → 完成。教师：登录 → 教师控制台 → 发布新 Challenge → 看全班进度 → 批改 → 导出 CSV。"
-    },
-    {
-      "id": "d7",
-      "title": "本地开发指南",
-      "category": "运维指南",
-      "author": "技术团队",
-      "lastUpdated": "2026-07-08",
-      "content": "环境要求：Node.js 18+、Docker（Redis）。启动步骤：npm install → 复制 .env.example 为 .env.local 并填入飞书/DeepSeek/GitHub 凭证 → docker-compose up -d redis → npm run dev。访问 http://localhost:3000。"
-    },
-    {
-      "id": "d8",
-      "title": "部署到服务器",
-      "category": "运维指南",
-      "author": "技术团队",
-      "lastUpdated": "2026-07-08",
-      "content": "生产部署使用 Docker Compose：docker-compose up -d。Redis 和 Next.js App 分别在两个容器中运行。需配置的环境变量见 .env.example。腾讯云等国内服务器注意 GitHub 连通性问题，可使用 git bundle 方式推送代码。"
+      "author": "数学系",
+      "lastUpdated": "2026-07-16",
+      "content": "作业要求：1. 手写或 LaTeX 排版。2. 提交 PDF 格式。3. 文件命名：学号_姓名_第N次作业.pdf。4. 截止时间前上传到平台。逾期扣 20% 分数。"
     }
   ]
 }
